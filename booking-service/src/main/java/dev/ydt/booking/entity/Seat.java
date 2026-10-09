@@ -1,6 +1,6 @@
-package dev.ydt.booking.seat;
+package dev.ydt.booking.entity;
 
-import dev.ydt.booking.event.Event;
+import dev.ydt.booking.entity.enums.SeatStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -13,12 +13,17 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 
 @Entity
 @Table(name = "seats")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Seat {
 
     @Id
@@ -51,51 +56,4 @@ public class Seat {
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt = Instant.now();
-
-    protected Seat() {
-    }
-
-    public Seat(Event event, String section, String rowLabel, int seatNumber, BigDecimal price) {
-        this.event = event;
-        this.section = section;
-        this.rowLabel = rowLabel;
-        this.seatNumber = seatNumber;
-        this.price = price;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public Event getEvent() {
-        return event;
-    }
-
-    public String getSection() {
-        return section;
-    }
-
-    public String getRowLabel() {
-        return rowLabel;
-    }
-
-    public int getSeatNumber() {
-        return seatNumber;
-    }
-
-    public BigDecimal getPrice() {
-        return price;
-    }
-
-    public SeatStatus getStatus() {
-        return status;
-    }
-
-    public long getVersion() {
-        return version;
-    }
-
-    public Instant getUpdatedAt() {
-        return updatedAt;
-    }
 }

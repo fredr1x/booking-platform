@@ -1,5 +1,6 @@
-package dev.ydt.booking.event;
+package dev.ydt.booking.entity;
 
+import dev.ydt.booking.entity.enums.EventStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -8,11 +9,16 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 
 @Entity
 @Table(name = "events")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Event {
 
     @Id
@@ -37,43 +43,4 @@ public class Event {
 
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private Instant createdAt;
-
-    protected Event() {
-    }
-
-    public Event(String title, String venue, Instant startsAt, Instant salesOpenAt, EventStatus status) {
-        this.title = title;
-        this.venue = venue;
-        this.startsAt = startsAt;
-        this.salesOpenAt = salesOpenAt;
-        this.status = status;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public String getVenue() {
-        return venue;
-    }
-
-    public Instant getStartsAt() {
-        return startsAt;
-    }
-
-    public Instant getSalesOpenAt() {
-        return salesOpenAt;
-    }
-
-    public EventStatus getStatus() {
-        return status;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
 }

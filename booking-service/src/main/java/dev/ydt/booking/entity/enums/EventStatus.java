@@ -1,4 +1,4 @@
-package dev.ydt.booking.event;
+package dev.ydt.booking.entity.enums;
 
 public enum EventStatus {
     DRAFT,

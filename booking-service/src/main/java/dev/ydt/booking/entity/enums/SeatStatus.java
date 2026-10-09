@@ -1,4 +1,4 @@
-package dev.ydt.booking.seat;
+package dev.ydt.booking.entity.enums;
 
 public enum SeatStatus {
     AVAILABLE,

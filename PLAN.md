@@ -6,7 +6,8 @@
 
 | Область | Технология | Зачем в проекте |
 |---|---|---|
-| Язык, фреймворк | Java 21 (virtual threads), Spring Boot 3, Maven multi-module | Основа сервисов |
+| Язык, фреймворк | Java 21 (virtual threads), Spring Boot 4, Maven multi-module | Основа сервисов |
+| Бойлерплейт | Lombok, MapStruct | Геттеры и конструкторы, маппинг сущность → DTO |
 | Основная БД | PostgreSQL 16 + Flyway | Места, брони, outbox. Блокировки: optimistic, `FOR UPDATE SKIP LOCKED` |
 | Кэш и координация | Redis 7 | Hold мест с TTL, Lua-скрипты, rate limiter, виртуальная очередь, idempotency, кэш каталога |
 | Брокер | Kafka (KRaft, без ZooKeeper) | События брони и оплаты, outbox, saga |

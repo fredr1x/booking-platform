@@ -1,5 +1,7 @@
-package dev.ydt.booking.seat;
+package dev.ydt.booking.repository;
 
+import dev.ydt.booking.entity.Seat;
+import dev.ydt.booking.entity.enums.SeatStatus;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
