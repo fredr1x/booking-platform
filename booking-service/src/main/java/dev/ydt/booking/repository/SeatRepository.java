@@ -7,11 +7,14 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface SeatRepository extends JpaRepository<Seat, Long> {
 
     List<Seat> findByEventIdAndStatusOrderByIdAsc(Long eventId, SeatStatus status, Limit limit);
+
+    List<Seat> findByEventIdAndIdIn(Long eventId, Collection<Long> ids);
 
     @Query("""
             select s.status as status, count(s) as count

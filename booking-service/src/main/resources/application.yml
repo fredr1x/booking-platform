@@ -26,6 +26,15 @@ spring:
   flyway:
     locations: classpath:db/migration
 
+booking:
+  hold-ttl: 10m
+  expiration-sweep-interval: 30s
+  pricing:
+    early-bird-window: 72h
+    early-bird-discount: 0.15
+    demand-threshold: 0.80
+    demand-max-markup: 0.50
+
 server:
   port: 8081
   shutdown: graceful

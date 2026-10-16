@@ -5,6 +5,7 @@ import dev.ydt.booking.dto.event.EventResponse;
 import dev.ydt.booking.dto.seat.SeatResponse;
 import dev.ydt.booking.entity.Event;
 import dev.ydt.booking.entity.enums.SeatStatus;
+import dev.ydt.booking.exception.EventNotFoundException;
 import dev.ydt.booking.mapper.EventMapper;
 import dev.ydt.booking.mapper.SeatMapper;
 import dev.ydt.booking.repository.EventRepository;
@@ -12,10 +13,8 @@ import dev.ydt.booking.repository.SeatRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Sort;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.EnumMap;
 import java.util.List;
@@ -55,9 +54,8 @@ public class EventService {
                 seatRepository.findByEventIdAndStatusOrderByIdAsc(eventId, status, Limit.of(limit)));
     }
 
-    // Своё исключение и глобальный обработчик ошибок появятся в блоке 4.
     private Event getEvent(Long id) {
         return eventRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Event " + id + " not found"));
+                .orElseThrow(() -> new EventNotFoundException(id));
     }
 }

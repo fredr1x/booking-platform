@@ -80,7 +80,9 @@ booking-project/
 
 ---
 
-## Неделя 2 · 16.10 · Домен и unit-тесты
+## Неделя 2 · 16.10 · Домен и unit-тесты ✅
+
+**Сделано:** `V2__bookings.sql`, sealed `BookingState` (State), стратегии цены `Demand > EarlyBird > Standard` (Strategy), sealed-иерархия исключений с ProblemDetail, API create / get / cancel, уборщик просроченных холдов. 61 тест: матрица переходов 5×4, агрегат, цены, сервис на Mockito, API на Testcontainers. Демо-данные переведены в repeatable-миграцию `R__demo_events.sql`.
 
 **Задачи**
 1. Миграция `V2`: таблицы `bookings` (id, event_id, user_id, status, total_price, expires_at, created_at, version) и `booking_seats` (booking_id, seat_id, price).

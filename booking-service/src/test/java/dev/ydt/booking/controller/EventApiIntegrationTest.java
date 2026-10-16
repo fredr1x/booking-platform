@@ -1,31 +1,14 @@
-package dev.ydt.booking;
+package dev.ydt.booking.controller;
 
+import dev.ydt.booking.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.test.web.servlet.MockMvc;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
-@AutoConfigureMockMvc
-@Testcontainers
-class BookingServiceApplicationTests {
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
-
-    @Autowired
-    MockMvc mvc;
+class EventApiIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void migrationsAndSeedAreApplied() throws Exception {
@@ -34,6 +17,7 @@ class BookingServiceApplicationTests {
                 .andExpect(jsonPath("$", hasSize(3)));
     }
 
+    // Брони в других тестах делаются только на событие 1, событие 2 остаётся нетронутым.
     @Test
     void flashSaleEventHasTwentyThousandAvailableSeats() throws Exception {
         mvc.perform(get("/api/v1/events/2/availability"))
@@ -52,6 +36,7 @@ class BookingServiceApplicationTests {
     @Test
     void unknownEventReturns404() throws Exception {
         mvc.perform(get("/api/v1/events/999"))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.title").value("EventNotFound"));
     }
 }

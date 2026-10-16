@@ -1,6 +1,7 @@
 package dev.ydt.booking.entity;
 
 import dev.ydt.booking.entity.enums.SeatStatus;
+import dev.ydt.booking.exception.SeatUnavailableException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -19,6 +20,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 
 @Entity
 @Table(name = "seats")
@@ -56,4 +58,35 @@ public class Seat {
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt = Instant.now();
+
+    // Наивная проверка без блокировок: гонку между проверкой и записью разбираем в блоке 3.
+    public void hold(Instant now) {
+        if (status != SeatStatus.AVAILABLE) {
+            throw new SeatUnavailableException(List.of(id));
+        }
+        changeStatus(SeatStatus.HELD, now);
+    }
+
+    public void book(Instant now) {
+        requireStatus(SeatStatus.HELD);
+        changeStatus(SeatStatus.BOOKED, now);
+    }
+
+    public void release(Instant now) {
+        if (status == SeatStatus.AVAILABLE) {
+            throw new IllegalStateException("Seat " + id + " is already available");
+        }
+        changeStatus(SeatStatus.AVAILABLE, now);
+    }
+
+    private void requireStatus(SeatStatus expected) {
+        if (status != expected) {
+            throw new IllegalStateException("Seat " + id + " is " + status + ", expected " + expected);
+        }
+    }
+
+    private void changeStatus(SeatStatus next, Instant now) {
+        status = next;
+        updatedAt = now;
+    }
 }
