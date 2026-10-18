@@ -7,7 +7,6 @@ import dev.ydt.booking.entity.enums.PricingType;
 import dev.ydt.booking.entity.enums.SeatStatus;
 import dev.ydt.booking.entity.state.BookingState;
 import dev.ydt.booking.exception.IllegalBookingTransitionException;
-import dev.ydt.booking.exception.SeatUnavailableException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -34,12 +33,12 @@ class BookingTest {
     @BeforeEach
     void setUp() {
         event = event(1L, EventStatus.ON_SALE, null);
-        seat1 = seat(1L, event, "10000");
-        seat2 = seat(2L, event, "15000");
+        seat1 = seat(1L, event, "10000", SeatStatus.HELD);
+        seat2 = seat(2L, event, "15000", SeatStatus.HELD);
     }
 
     @Test
-    void createHoldsSeatsAndSumsPrice() {
+    void createAttachesHeldSeatsAndSumsPrice() {
         Booking booking = newBooking();
 
         assertThat(booking.getStatus()).isEqualTo(BookingStatus.PENDING);
@@ -52,12 +51,13 @@ class BookingTest {
     }
 
     @Test
-    void createFailsWhenSeatIsTaken() {
-        Seat taken = seat(3L, event, "5000", SeatStatus.BOOKED);
+    void createRejectsSeatThatIsNotHeld() {
+        Seat notHeld = seat(3L, event, "5000", SeatStatus.AVAILABLE);
 
-        assertThatThrownBy(() -> Booking.create(event, "user-1", List.of(taken), PricingType.STANDARD,
+        assertThatThrownBy(() -> Booking.create(event, "user-1", List.of(notHeld), PricingType.STANDARD,
                 Map.of(3L, new BigDecimal("5000")), NOW, HOLD_TTL))
-                .isInstanceOf(SeatUnavailableException.class);
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("must be held");
     }
 
     @Test

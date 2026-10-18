@@ -28,6 +28,7 @@ spring:
 
 booking:
   hold-ttl: 10m
+  seat-locking: atomic
   expiration-sweep-interval: 30s
   pricing:
     early-bird-window: 72h

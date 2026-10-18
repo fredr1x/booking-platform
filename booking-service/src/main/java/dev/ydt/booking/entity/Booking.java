@@ -3,6 +3,7 @@ package dev.ydt.booking.entity;
 import dev.ydt.booking.entity.enums.BookingStatus;
 import dev.ydt.booking.entity.enums.CancelReason;
 import dev.ydt.booking.entity.enums.PricingType;
+import dev.ydt.booking.entity.enums.SeatStatus;
 import dev.ydt.booking.entity.state.BookingState;
 import dev.ydt.booking.entity.state.BookingState.AwaitingPayment;
 import dev.ydt.booking.entity.state.BookingState.Cancelled;
@@ -98,7 +99,8 @@ public class Booking {
     private List<BookingSeat> seats = new ArrayList<>();
 
     /**
-     * Создаёт бронь в статусе PENDING и холдит места.
+     * Создаёт бронь в статусе PENDING на уже захолженные места. Холд делает {@code SeatHoldStrategy}:
+     * от способа блокировки зависит, защищены ли мы от гонки, поэтому это не забота агрегата.
      *
      * @param seatPrices итоговая цена каждого места по id, посчитанная стратегией ценообразования
      */
@@ -115,7 +117,9 @@ public class Booking {
             if (price == null) {
                 throw new IllegalArgumentException("No price for seat " + seat.getId());
             }
-            seat.hold(now);
+            if (seat.getStatus() != SeatStatus.HELD) {
+                throw new IllegalStateException("Seat " + seat.getId() + " must be held before booking");
+            }
             booking.seats.add(new BookingSeat(booking, seat, price));
             booking.totalPrice = booking.totalPrice.add(price);
         }
@@ -161,7 +165,7 @@ public class Booking {
     }
 
     private void releaseSeats(Instant now) {
-        seats.forEach(s -> s.getSeat().release(now));
+        seats.forEach(s -> s.release(now));
     }
 
     // Раскладывает состояние по колонкам. Switch по sealed-типу без default: новое состояние не скомпилируется,

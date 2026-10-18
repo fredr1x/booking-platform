@@ -9,18 +9,18 @@ import dev.ydt.booking.entity.Seat;
 import dev.ydt.booking.entity.enums.BookingStatus;
 import dev.ydt.booking.entity.enums.CancelReason;
 import dev.ydt.booking.entity.enums.EventStatus;
-import dev.ydt.booking.entity.enums.SeatStatus;
 import dev.ydt.booking.exception.BookingNotFoundException;
 import dev.ydt.booking.exception.EventNotFoundException;
 import dev.ydt.booking.exception.EventNotOnSaleException;
 import dev.ydt.booking.exception.InvalidSeatSelectionException;
-import dev.ydt.booking.exception.SeatUnavailableException;
 import dev.ydt.booking.mapper.BookingMapper;
 import dev.ydt.booking.repository.BookingRepository;
 import dev.ydt.booking.repository.EventRepository;
 import dev.ydt.booking.repository.SeatRepository;
 import dev.ydt.booking.service.pricing.PriceQuote;
 import dev.ydt.booking.service.pricing.PricingService;
+import dev.ydt.booking.service.locking.SeatHoldStrategy;
+import dev.ydt.booking.service.locking.SeatLockingMode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
@@ -46,9 +46,14 @@ public class BookingService {
     private final BookingMapper bookingMapper;
     private final BookingProperties properties;
     private final Clock clock;
+    private final List<SeatHoldStrategy> seatHoldStrategies;
 
-    // Наивная версия: между проверкой статуса мест и записью есть окно для гонки. Это исправляем в блоке 3.
     public BookingResponse create(String userId, CreateBookingRequest request) {
+        return create(userId, request, properties.seatLocking());
+    }
+
+    /** Явный выбор стратегии нужен тесту на гонку, который сравнивает все способы на одной базе. */
+    public BookingResponse create(String userId, CreateBookingRequest request, SeatLockingMode mode) {
         Instant now = clock.instant();
         Event event = eventRepository.findById(request.eventId())
                 .orElseThrow(() -> new EventNotFoundException(request.eventId()));
@@ -56,14 +61,10 @@ public class BookingService {
             throw new EventNotOnSaleException(event.getId(), event.getStatus());
         }
 
+        // Быстрый отказ по чтению без блокировок. Защиты от гонки он не даёт, её даёт стратегия ниже.
         List<Seat> seats = loadSeats(event.getId(), request.seatIds());
-        List<Long> unavailable = seats.stream()
-                .filter(seat -> seat.getStatus() != SeatStatus.AVAILABLE)
-                .map(Seat::getId)
-                .toList();
-        if (!unavailable.isEmpty()) {
-            throw new SeatUnavailableException(unavailable);
-        }
+        SeatHoldStrategy.requireAvailable(seats);
+        strategy(mode).hold(seats, now);
 
         PriceQuote quote = pricingService.quote(event, seats, now);
         Booking booking = Booking.create(event, userId, seats, quote.type(), quote.seatPrices(), now,
@@ -89,6 +90,13 @@ public class BookingService {
                 BookingStatus.PENDING, now, Limit.of(EXPIRATION_BATCH_SIZE));
         overdue.forEach(booking -> booking.expire(now));
         return overdue.size();
+    }
+
+    private SeatHoldStrategy strategy(SeatLockingMode mode) {
+        return seatHoldStrategies.stream()
+                .filter(strategy -> strategy.mode() == mode)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("No seat hold strategy for " + mode));
     }
 
     private List<Seat> loadSeats(Long eventId, List<Long> seatIds) {

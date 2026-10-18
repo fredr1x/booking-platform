@@ -17,12 +17,12 @@ class EventApiIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$", hasSize(3)));
     }
 
-    // Брони в других тестах делаются только на событие 1, событие 2 остаётся нетронутым.
+    // Событие 3 в статусе DRAFT, его никто не бронирует, поэтому все 200 мест свободны.
     @Test
-    void flashSaleEventHasTwentyThousandAvailableSeats() throws Exception {
-        mvc.perform(get("/api/v1/events/2/availability"))
+    void draftEventHasAllSeatsAvailable() throws Exception {
+        mvc.perform(get("/api/v1/events/3/availability"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.seats.AVAILABLE").value(20_000))
+                .andExpect(jsonPath("$.seats.AVAILABLE").value(200))
                 .andExpect(jsonPath("$.seats.BOOKED").value(0));
     }
 

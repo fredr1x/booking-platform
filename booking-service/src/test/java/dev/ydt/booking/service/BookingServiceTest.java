@@ -18,6 +18,8 @@ import dev.ydt.booking.mapper.BookingMapper;
 import dev.ydt.booking.repository.BookingRepository;
 import dev.ydt.booking.repository.EventRepository;
 import dev.ydt.booking.repository.SeatRepository;
+import dev.ydt.booking.service.locking.SeatHoldStrategy;
+import dev.ydt.booking.service.locking.SeatLockingMode;
 import dev.ydt.booking.service.pricing.PriceQuote;
 import dev.ydt.booking.service.pricing.PricingService;
 import org.junit.jupiter.api.BeforeEach;
@@ -73,9 +75,9 @@ class BookingServiceTest {
 
     @BeforeEach
     void setUp() {
-        BookingProperties properties = new BookingProperties(Duration.ofMinutes(10), null);
+        BookingProperties properties = new BookingProperties(Duration.ofMinutes(10), SeatLockingMode.ATOMIC, null);
         bookingService = new BookingService(bookingRepository, eventRepository, seatRepository, pricingService,
-                bookingMapper, properties, Clock.fixed(NOW, ZoneOffset.UTC));
+                bookingMapper, properties, Clock.fixed(NOW, ZoneOffset.UTC), List.of(new InMemoryHold()));
         event = event(1L, EventStatus.ON_SALE, null);
         seat1 = seat(10L, event, "10000");
         seat2 = seat(11L, event, "20000");
@@ -157,6 +159,7 @@ class BookingServiceTest {
 
     @Test
     void expireOverdueExpiresPendingBookings() {
+        seat1.hold(NOW.minus(Duration.ofMinutes(20)));
         Booking booking = Booking.create(event, USER, List.of(seat1), PricingType.STANDARD,
                 Map.of(10L, new BigDecimal("10000")), NOW.minus(Duration.ofMinutes(20)), Duration.ofMinutes(10));
         when(bookingRepository.findByStatusAndExpiresAtBefore(eq(BookingStatus.PENDING), eq(NOW), any()))
@@ -167,5 +170,18 @@ class BookingServiceTest {
         assertThat(expired).isEqualTo(1);
         assertThat(booking.getStatus()).isEqualTo(BookingStatus.EXPIRED);
         assertThat(seat1.getStatus()).isEqualTo(SeatStatus.AVAILABLE);
+    }
+
+    // Блокировки проверяет SeatRaceIntegrationTest на настоящей БД, здесь достаточно перевести места в HELD.
+    private static class InMemoryHold implements SeatHoldStrategy {
+        @Override
+        public SeatLockingMode mode() {
+            return SeatLockingMode.ATOMIC;
+        }
+
+        @Override
+        public void hold(List<Seat> seats, Instant now) {
+            seats.forEach(seat -> seat.hold(now));
+        }
     }
 }

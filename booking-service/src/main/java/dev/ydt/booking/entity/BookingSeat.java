@@ -14,6 +14,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 
 @Entity
 @Table(name = "booking_seats")
@@ -37,9 +38,18 @@ public class BookingSeat {
     @Column(nullable = false)
     private BigDecimal price;
 
+    // на активные строки смотрит уникальный индекс uq_booking_seats_active_seat
+    @Column(nullable = false)
+    private boolean active = true;
+
     BookingSeat(Booking booking, Seat seat, BigDecimal price) {
         this.booking = booking;
         this.seat = seat;
         this.price = price;
+    }
+
+    void release(Instant now) {
+        seat.release(now);
+        active = false;
     }
 }

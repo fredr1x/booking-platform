@@ -1,12 +1,13 @@
 package dev.ydt.booking.config;
 
+import dev.ydt.booking.service.locking.SeatLockingMode;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.math.BigDecimal;
 import java.time.Duration;
 
 @ConfigurationProperties("booking")
-public record BookingProperties(Duration holdTtl, Pricing pricing) {
+public record BookingProperties(Duration holdTtl, SeatLockingMode seatLocking, Pricing pricing) {
 
     /**
      * @param earlyBirdWindow   сколько после открытия продаж действует скидка

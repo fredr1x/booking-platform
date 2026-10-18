@@ -59,7 +59,7 @@ public class Seat {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt = Instant.now();
 
-    // Наивная проверка без блокировок: гонку между проверкой и записью разбираем в блоке 3.
+    // Проверка по состоянию в памяти. От гонки защищает не она, а стратегия холда (service/locking).
     public void hold(Instant now) {
         if (status != SeatStatus.AVAILABLE) {
             throw new SeatUnavailableException(List.of(id));

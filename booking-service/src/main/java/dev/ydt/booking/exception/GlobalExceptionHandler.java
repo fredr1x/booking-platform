@@ -1,5 +1,6 @@
 package dev.ydt.booking.exception;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -34,6 +35,16 @@ public class GlobalExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
                 "Resource was modified concurrently, retry the request");
         problem.setTitle("ConcurrentModification");
+        return problem;
+    }
+
+    // Последний рубеж: блокировки в коде пропустили гонку, но её поймало ограничение в БД
+    // (например, уникальный индекс uq_booking_seats_active_seat).
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ProblemDetail handleIntegrityViolation(DataIntegrityViolationException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+                "Request conflicts with the current state, retry the request");
+        problem.setTitle("Conflict");
         return problem;
     }
 }

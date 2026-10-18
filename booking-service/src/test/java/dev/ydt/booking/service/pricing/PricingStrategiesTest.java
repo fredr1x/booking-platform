@@ -1,6 +1,7 @@
 package dev.ydt.booking.service.pricing;
 
 import dev.ydt.booking.config.BookingProperties;
+import dev.ydt.booking.service.locking.SeatLockingMode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -14,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PricingStrategiesTest {
 
     static final Instant SALES_OPEN = Instant.parse("2026-10-16T10:00:00Z");
-    static final BookingProperties PROPERTIES = new BookingProperties(Duration.ofMinutes(10),
+    static final BookingProperties PROPERTIES = new BookingProperties(Duration.ofMinutes(10), SeatLockingMode.ATOMIC,
             new BookingProperties.Pricing(Duration.ofHours(72), new BigDecimal("0.15"),
                     new BigDecimal("0.80"), new BigDecimal("0.50")));
 

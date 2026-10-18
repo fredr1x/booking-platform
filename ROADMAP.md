@@ -1,6 +1,6 @@
 # Дорожная карта: по неделям
 
-Детальный план реализации. Общая идея, стек и бюджет памяти в [PLAN.md](PLAN.md). Слоты: пятница 15:00–19:00, синхронизировано с Google Calendar.
+Детальный план реализации. Общая идея, стек и бюджет памяти в [PLAN.md](PLAN.md). Даты и слоты в таблице «График» в [PLAN.md](PLAN.md), синхронизировано с Google Calendar. Проект заканчиваем к 29.11.
 
 ## Итоговая архитектура
 
@@ -53,7 +53,7 @@ booking-project/
 ├── docs/adr/                    решения: блокировки, saga, очередь
 ├── docker-compose.yml           профили: core, search, nosql, obs, apps
 ├── PLAN.md, ROADMAP.md, README.md
-└── .gitlab-ci.yml
+└── .github/workflows/ci.yml
 ```
 
 ### Как растёт проект
@@ -72,15 +72,15 @@ booking-project/
 
 ---
 
-## Неделя 1 · 09.10 · Скелет ✅
+## Блок 1 · 09.10 · Скелет ✅
 
 **Сделано:** Maven multi-module, Spring Boot 4.0.8 и Java 21 (virtual threads), compose с Postgres 17 (порт 5433, 512 МБ), `booking-service` с моделью `Event` / `Seat`, Flyway, демо-данные (событие на 20 000 мест), интеграционный тест на Testcontainers.
 
-**Осталось:** первый коммит, репозиторий на GitHub или GitLab.
+Репозиторий: [fredr1x/booking-platform](https://github.com/fredr1x/booking-platform).
 
 ---
 
-## Неделя 2 · 16.10 · Домен и unit-тесты ✅
+## Блок 2 · 16.10 · Домен и unit-тесты ✅
 
 **Сделано:** `V2__bookings.sql`, sealed `BookingState` (State), стратегии цены `Demand > EarlyBird > Standard` (Strategy), sealed-иерархия исключений с ProblemDetail, API create / get / cancel, уборщик просроченных холдов. 61 тест: матрица переходов 5×4, агрегат, цены, сервис на Mockito, API на Testcontainers. Демо-данные переведены в repeatable-миграцию `R__demo_events.sql`.
 
@@ -101,7 +101,9 @@ booking-project/
 
 ---
 
-## Неделя 3 · 23.10 · Гонки и блокировки (ядро проекта)
+## Блок 3 · 18.10 · Гонки и блокировки (ядро проекта) ✅
+
+**Сделано:** 6 стратегий холда в `service/locking` (по умолчанию `ATOMIC`), частичный уникальный индекс-страховка (`V3`), уборщик через `SKIP LOCKED`, `SeatRaceIntegrationTest` на 1000 виртуальных потоков, решение и цифры в [ADR 0001](docs/adr/0001-seat-locking.md). Без индекса NAIVE продал одно место 5–19 раз, JVM-lock на двух инстансах 2 раза. 75 тестов.
 
 **Задачи**
 1. Тест на гонку: 1 000 виртуальных потоков, старт по `CountDownLatch`, все бронируют одно место. Наивный код (`check-then-act`) показывает двойную продажу. Фиксируем это в тесте.
@@ -124,7 +126,7 @@ booking-project/
 
 ---
 
-## Неделя 4 · 30.10 · Слои, валидация, API Gateway, идемпотентность
+## Блок 4 · 23.10 · Слои, валидация, API Gateway, идемпотентность
 
 **Задачи**
 1. Слои controller → service → repository, DTO отдельно от сущностей, маппинг (MapStruct или вручную).
@@ -141,7 +143,7 @@ booking-project/
 
 ---
 
-## Неделя 5 · 06.11 · Каталог, индексы, N+1
+## Блок 5 · 25.10 · Каталог, индексы, N+1
 
 **Задачи**
 1. Новый модуль `catalog-service` с отдельной базой `catalog`: `venues`, `events`, `performers`, `event_performers`, `price_tiers`. Таблица `events` переезжает сюда из booking-service. В booking остаётся только `event_id` и инвентарь мест.
@@ -158,7 +160,7 @@ booking-project/
 
 ---
 
-## Неделя 6 · 13.11 · Kafka, outbox, DLQ
+## Блок 6 · 30.10 · Kafka, outbox, DLQ
 
 **Задачи**
 1. Kafka в compose (KRaft, 1 брокер, heap 512 МБ). Kafka UI в отдельном профиле `tools`.
@@ -175,7 +177,7 @@ booking-project/
 
 ---
 
-## Неделя 7 · 20.11 · Контрольная точка 1–6 + Redis, MongoDB, Elasticsearch
+## Блок 7 · 01.11 (Redis) и 06.11 (MongoDB, Elasticsearch)
 
 **Задачи**
 1. Redis в compose (`maxmemory 192mb`).
@@ -189,7 +191,7 @@ booking-project/
 
 ---
 
-## Неделя 8 · 27.11 · Flash sale: виртуальная очередь, тесты, CI
+## Блок 8 · 08.11 (очередь) и 13.11 (Docker, CI) · Flash sale, тесты, CI
 
 **Задачи**
 1. `waiting-room-service`:
@@ -201,7 +203,7 @@ booking-project/
 3. Backpressure: ограничение одновременных запросов в booking-service (bulkhead / семафор). При перегрузе `503 + Retry-After`, а не рост задержки до таймаута.
 4. Testcontainers во всех сервисах (Postgres, Redis, Kafka, Mongo). Общий базовый класс для тестов с переиспользованием контейнеров.
 5. Dockerfile для каждого сервиса: многостадийная сборка, слоистый jar, `-XX:MaxRAMPercentage=70`, запуск не от root. Профиль `apps` в compose.
-6. `.gitlab-ci.yml`: build → test → docker build, кэш Maven.
+6. `.github/workflows/ci.yml`: build → test → docker build, кэш Maven.
 7. k6-сценарий `flash-sale.js`: 10 000 виртуальных пользователей на одно событие.
 
 **Готово, когда:** при 10 000 пользователях очередь держит поток, двойных продаж 0, CI зелёный.
@@ -212,7 +214,7 @@ booking-project/
 
 ---
 
-## Неделя 9 · 04.12 · Rate limiter, circuit breaker, saga
+## Блок 9 · 15.11 · Rate limiter, circuit breaker, saga
 
 **Задачи**
 1. **Rate limiter:**
@@ -231,7 +233,7 @@ booking-project/
 
 ---
 
-## Неделя 10 · 11.12 · Observability
+## Блок 10 · 20.11 · Observability
 
 **Задачи**
 1. Micrometer + Prometheus. Бизнес-метрики: `bookings_created_total`, `seat_conflicts_total`, `holds_expired_total`, `queue_length`, `circuit_breaker_state`, задержка Kafka consumer'ов.
@@ -244,7 +246,7 @@ booking-project/
 
 ---
 
-## Неделя 11 · 18.12 · Kubernetes, нагрузка, README
+## Блоки 11–12 · 22.11 (нагрузка) и 27.11 (kind, README)
 
 **Задачи**
 1. kind (1 control-plane + 1 worker). В кластере только 6 сервисов, инфраструктура остаётся в compose (иначе не влезет в память).
@@ -258,7 +260,7 @@ booking-project/
 
 ---
 
-## Неделя 12 · 25.12 · Резерв
+## Резерв · 29.11
 
 Добить незавершённое, отполировать README и рассказ. Если всё готово: Grafana-скриншоты в README, короткое видео демо flash sale.
 
@@ -271,7 +273,7 @@ booking-project/
 - Transactional outbox, идемпотентные consumer'ы, DLQ, saga с компенсацией.
 - Rate limiter (token bucket и sliding window на Redis), circuit breaker, bulkhead, backpressure.
 - Prometheus, Grafana, Loki, сквозной request id, нагрузочные тесты k6 с цифрами до и после.
-- Docker, GitLab CI, Kubernetes (kind) с HPA. Всё запускается на ноутбуке с 16 ГБ.
+- Docker, GitHub Actions, Kubernetes (kind) с HPA. Всё запускается на ноутбуке с 16 ГБ.
 
 ## Риски
 

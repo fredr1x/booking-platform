@@ -6,7 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-// Простой уборщик через БД. В блоке 3 добавим SKIP LOCKED для нескольких инстансов, в блоке 7 холды переедут в Redis.
+// Уборщик через БД: инстансы делят работу через SKIP LOCKED (см. BookingRepository). В блоке 7а холды переедут в Redis.
 @Slf4j
 @Component
 @RequiredArgsConstructor
