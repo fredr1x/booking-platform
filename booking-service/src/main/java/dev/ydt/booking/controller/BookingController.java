@@ -4,6 +4,7 @@ import dev.ydt.booking.dto.booking.BookingResponse;
 import dev.ydt.booking.dto.booking.CreateBookingRequest;
 import dev.ydt.booking.service.BookingService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,27 +23,28 @@ import java.net.URI;
 @RequiredArgsConstructor
 public class BookingController {
 
-    // Аутентификации нет по замыслу проекта: пользователь передаётся заголовком.
-    static final String USER_HEADER = "X-User-Id";
+    static final String IDEMPOTENCY_HEADER = "Idempotency-Key";
 
     private final BookingService bookingService;
 
     @PostMapping
-    public ResponseEntity<BookingResponse> create(@RequestHeader(USER_HEADER) String userId,
+    public ResponseEntity<BookingResponse> create(@CurrentUser String userId,
+                                                  @RequestHeader(name = IDEMPOTENCY_HEADER, required = false)
+                                                  @Size(max = 255) String idempotencyKey,
                                                   @Valid @RequestBody CreateBookingRequest request) {
-        BookingResponse booking = bookingService.create(userId, request);
+        BookingResponse booking = bookingService.create(userId, idempotencyKey, request);
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}").buildAndExpand(booking.id()).toUri();
         return ResponseEntity.created(location).body(booking);
     }
 
     @GetMapping("/{id}")
-    public BookingResponse get(@RequestHeader(USER_HEADER) String userId, @PathVariable Long id) {
+    public BookingResponse get(@CurrentUser String userId, @PathVariable Long id) {
         return bookingService.get(id, userId);
     }
 
     @PostMapping("/{id}/cancel")
-    public BookingResponse cancel(@RequestHeader(USER_HEADER) String userId, @PathVariable Long id) {
+    public BookingResponse cancel(@CurrentUser String userId, @PathVariable Long id) {
         return bookingService.cancel(id, userId);
     }
 }

@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          # Без этого gateway не добавляет X-Forwarded-* и booking-service строит Location на свой :8081.
+          # Регэксп: от каких прокси перед gateway верить уже пришедшим X-Forwarded-*. Пока перед ним никого нет,
+          # верим только локальным адресам, чужие заголовки от клиента gateway перезапишет.
+          trusted-proxies: 127\.0\.0\.1|0:0:0:0:0:0:0:1
+          routes:
+            # в блоке 5 сюда добавится catalog-service, /api/v1/events переедет к нему
+            - id: booking-service
+              uri: ${BOOKING_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/api/v1/**
+
+server:
+  port: 8080
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

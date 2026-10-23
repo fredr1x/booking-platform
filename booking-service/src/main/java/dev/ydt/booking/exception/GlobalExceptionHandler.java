@@ -2,14 +2,67 @@ package dev.ydt.booking.exception;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.WebRequest;
+import org.springframework.validation.method.ParameterErrors;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
-// Минимальная версия: доменные ошибки → RFC 7807. Валидацию и остальное расширяем в блоке 4.
+import java.util.List;
+
+/**
+ * Все ошибки в формате RFC 7807 (ProblemDetail). Ошибки Spring MVC (нет заголовка, кривой JSON,
+ * не тот тип параметра) уже переведены в ProblemDetail базовым классом, здесь только доменные
+ * и подробности валидации.
+ */
 @RestControllerAdvice
-public class GlobalExceptionHandler {
+public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
+
+    /** Одна ошибка валидации: какое поле и что с ним не так. */
+    public record FieldViolation(String field, String message) {
+    }
+
+    // @Valid на теле запроса
+    @Override
+    protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException ex,
+                                                                  HttpHeaders headers, HttpStatusCode status,
+                                                                  WebRequest request) {
+        List<FieldViolation> errors = ex.getBindingResult().getFieldErrors().stream()
+                .map(error -> new FieldViolation(error.getField(), error.getDefaultMessage()))
+                .toList();
+        return handleExceptionInternal(ex, withErrors(ex.getBody(), errors), headers, status, request);
+    }
+
+    // Ограничения прямо на параметрах (заголовки, query). Если они есть, Spring валидирует весь метод разом,
+    // и ошибки @Valid-тела приходят сюда же как ParameterErrors, а не в handleMethodArgumentNotValid.
+    @Override
+    protected ResponseEntity<Object> handleHandlerMethodValidationException(HandlerMethodValidationException ex,
+                                                                            HttpHeaders headers,
+                                                                            HttpStatusCode status,
+                                                                            WebRequest request) {
+        List<FieldViolation> errors = ex.getParameterValidationResults().stream()
+                .flatMap(result -> result instanceof ParameterErrors bodyErrors
+                        ? bodyErrors.getFieldErrors().stream()
+                                .map(error -> new FieldViolation(error.getField(), error.getDefaultMessage()))
+                        : result.getResolvableErrors().stream()
+                                .map(error -> new FieldViolation(result.getMethodParameter().getParameterName(),
+                                        error.getDefaultMessage())))
+                .toList();
+        return handleExceptionInternal(ex, withErrors(ex.getBody(), errors), headers, status, request);
+    }
+
+    private static ProblemDetail withErrors(ProblemDetail problem, List<FieldViolation> errors) {
+        problem.setTitle("ValidationFailed");
+        problem.setProperty("errors", errors);
+        return problem;
+    }
 
     @ExceptionHandler(BookingException.class)
     public ProblemDetail handleBooking(BookingException ex) {
@@ -20,6 +73,7 @@ public class GlobalExceptionHandler {
             case IllegalBookingTransitionException e -> HttpStatus.CONFLICT;
             case EventNotOnSaleException e -> HttpStatus.UNPROCESSABLE_CONTENT;
             case InvalidSeatSelectionException e -> HttpStatus.BAD_REQUEST;
+            case IdempotencyKeyReusedException e -> HttpStatus.UNPROCESSABLE_CONTENT;
         };
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, ex.getMessage());
         problem.setTitle(ex.getClass().getSimpleName().replace("Exception", ""));

@@ -21,4 +21,12 @@ public class BookingExpirationScheduler {
             log.info("Expired {} overdue bookings", expired);
         }
     }
+
+    @Scheduled(fixedDelayString = "PT1H")
+    public void purgeIdempotencyKeys() {
+        int purged = bookingService.purgeIdempotencyKeys();
+        if (purged > 0) {
+            log.info("Purged {} old idempotency keys", purged);
+        }
+    }
 }

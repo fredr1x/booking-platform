@@ -1,0 +1,12 @@
+# Профиль интеграционных тестов. Адрес БД подставляет Testcontainers (@ServiceConnection).
+spring:
+  flyway:
+    locations: classpath:db/migration,classpath:db/seed
+  datasource:
+    hikari:
+      # тест на гонку ставит в очередь к пулу из 20 соединений тысячу потоков, 2 секунды ожидания им мало
+      connection-timeout: 60000
+
+booking:
+  scheduling:
+    enabled: false

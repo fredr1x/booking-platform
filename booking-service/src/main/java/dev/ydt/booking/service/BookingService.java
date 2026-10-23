@@ -5,6 +5,7 @@ import dev.ydt.booking.dto.booking.BookingResponse;
 import dev.ydt.booking.dto.booking.CreateBookingRequest;
 import dev.ydt.booking.entity.Booking;
 import dev.ydt.booking.entity.Event;
+import dev.ydt.booking.entity.IdempotencyKey;
 import dev.ydt.booking.entity.Seat;
 import dev.ydt.booking.entity.enums.BookingStatus;
 import dev.ydt.booking.entity.enums.CancelReason;
@@ -12,10 +13,12 @@ import dev.ydt.booking.entity.enums.EventStatus;
 import dev.ydt.booking.exception.BookingNotFoundException;
 import dev.ydt.booking.exception.EventNotFoundException;
 import dev.ydt.booking.exception.EventNotOnSaleException;
+import dev.ydt.booking.exception.IdempotencyKeyReusedException;
 import dev.ydt.booking.exception.InvalidSeatSelectionException;
 import dev.ydt.booking.mapper.BookingMapper;
 import dev.ydt.booking.repository.BookingRepository;
 import dev.ydt.booking.repository.EventRepository;
+import dev.ydt.booking.repository.IdempotencyKeyRepository;
 import dev.ydt.booking.repository.SeatRepository;
 import dev.ydt.booking.service.pricing.PriceQuote;
 import dev.ydt.booking.service.pricing.PricingService;
@@ -26,8 +29,13 @@ import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -38,10 +46,13 @@ import java.util.Set;
 public class BookingService {
 
     private static final int EXPIRATION_BATCH_SIZE = 500;
+    // как у Stripe: сутки покрывают любые разумные ретраи клиента
+    private static final Duration IDEMPOTENCY_KEY_TTL = Duration.ofHours(24);
 
     private final BookingRepository bookingRepository;
     private final EventRepository eventRepository;
     private final SeatRepository seatRepository;
+    private final IdempotencyKeyRepository idempotencyKeyRepository;
     private final PricingService pricingService;
     private final BookingMapper bookingMapper;
     private final BookingProperties properties;
@@ -50,6 +61,28 @@ public class BookingService {
 
     public BookingResponse create(String userId, CreateBookingRequest request) {
         return create(userId, request, properties.seatLocking());
+    }
+
+    /**
+     * Повтор с тем же ключом возвращает уже созданную бронь. Ключ пишется в той же транзакции, что и бронь:
+     * если бронь не создалась (место занято), ключ откатится вместе с ней и повтор выполнится заново.
+     */
+    public BookingResponse create(String userId, String idempotencyKey, CreateBookingRequest request) {
+        if (idempotencyKey == null) {
+            return create(userId, request);
+        }
+        IdempotencyKey.Id keyId = new IdempotencyKey.Id(userId, idempotencyKey);
+        String requestHash = sha256(request.toString());
+        if (idempotencyKeyRepository.insertIfAbsent(userId, idempotencyKey, requestHash, clock.instant()) == 0) {
+            IdempotencyKey saved = idempotencyKeyRepository.findById(keyId).orElseThrow();
+            if (!saved.getRequestHash().equals(requestHash)) {
+                throw new IdempotencyKeyReusedException(idempotencyKey);
+            }
+            return get(saved.getBookingId(), userId);
+        }
+        BookingResponse booking = create(userId, request);
+        idempotencyKeyRepository.attachBooking(keyId, booking.id());
+        return booking;
     }
 
     /** Явный выбор стратегии нужен тесту на гонку, который сравнивает все способы на одной базе. */
@@ -92,6 +125,10 @@ public class BookingService {
         return overdue.size();
     }
 
+    public int purgeIdempotencyKeys() {
+        return idempotencyKeyRepository.deleteCreatedBefore(clock.instant().minus(IDEMPOTENCY_KEY_TTL));
+    }
+
     private SeatHoldStrategy strategy(SeatLockingMode mode) {
         return seatHoldStrategies.stream()
                 .filter(strategy -> strategy.mode() == mode)
@@ -116,5 +153,15 @@ public class BookingService {
     private Booking getOwned(Long id, String userId) {
         return bookingRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new BookingNotFoundException(id));
+    }
+
+    // toString у record детерминирован и включает все поля, поэтому годится как каноничная форма запроса.
+    private static String sha256(String value) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
     }
 }

@@ -126,7 +126,9 @@ booking-project/
 
 ---
 
-## Блок 4 · 23.10 · Слои, валидация, API Gateway, идемпотентность
+## Блок 4 · 23.10 · Слои, валидация, API Gateway, идемпотентность ✅
+
+**Сделано:** модуль `api-gateway` (Spring Cloud Gateway на WebFlux, порт 8080) с маршрутом `/api/v1/**`, фильтром `X-Request-Id` и `X-Forwarded-*` (`trusted-proxies`). `Idempotency-Key` на `POST /bookings`: таблица `idempotency_keys` (`V4`), ключ пишется первым в той же транзакции через `INSERT ... ON CONFLICT DO NOTHING`, дубль ждёт на первичном ключе и получает ту же бронь; другое тело с тем же ключом → 422; ключи старше суток удаляет уборщик. `@CurrentUser` через `HandlerMethodArgumentResolver`. Все ошибки в ProblemDetail (`ResponseEntityExceptionHandler`), валидация со списком `errors`. Адрес и пароль БД только в профиле `local`, тесты в профиле `test`. springdoc, Swagger UI. 87 тестов.
 
 **Задачи**
 1. Слои controller → service → repository, DTO отдельно от сущностей, маппинг (MapStruct или вручную).

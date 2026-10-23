@@ -17,6 +17,7 @@ import dev.ydt.booking.exception.SeatUnavailableException;
 import dev.ydt.booking.mapper.BookingMapper;
 import dev.ydt.booking.repository.BookingRepository;
 import dev.ydt.booking.repository.EventRepository;
+import dev.ydt.booking.repository.IdempotencyKeyRepository;
 import dev.ydt.booking.repository.SeatRepository;
 import dev.ydt.booking.service.locking.SeatHoldStrategy;
 import dev.ydt.booking.service.locking.SeatLockingMode;
@@ -67,6 +68,8 @@ class BookingServiceTest {
     PricingService pricingService;
     @Mock
     BookingMapper bookingMapper;
+    @Mock
+    IdempotencyKeyRepository idempotencyKeyRepository;
 
     private BookingService bookingService;
     private Event event;
@@ -76,8 +79,8 @@ class BookingServiceTest {
     @BeforeEach
     void setUp() {
         BookingProperties properties = new BookingProperties(Duration.ofMinutes(10), SeatLockingMode.ATOMIC, null);
-        bookingService = new BookingService(bookingRepository, eventRepository, seatRepository, pricingService,
-                bookingMapper, properties, Clock.fixed(NOW, ZoneOffset.UTC), List.of(new InMemoryHold()));
+        bookingService = new BookingService(bookingRepository, eventRepository, seatRepository, idempotencyKeyRepository,
+                pricingService, bookingMapper, properties, Clock.fixed(NOW, ZoneOffset.UTC), List.of(new InMemoryHold()));
         event = event(1L, EventStatus.ON_SALE, null);
         seat1 = seat(10L, event, "10000");
         seat2 = seat(11L, event, "20000");
