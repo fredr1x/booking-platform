@@ -1,6 +1,6 @@
 package dev.ydt.booking.support;
 
-import dev.ydt.booking.entity.Event;
+import dev.ydt.booking.dto.event.CatalogEvent;
 import dev.ydt.booking.entity.Seat;
 import dev.ydt.booking.entity.enums.EventStatus;
 import dev.ydt.booking.entity.enums.SeatStatus;
@@ -16,25 +16,18 @@ public final class TestEntities {
     private TestEntities() {
     }
 
-    public static Event event(Long id, EventStatus status, Instant salesOpenAt) {
-        Event event = BeanUtils.instantiateClass(Event.class);
-        ReflectionTestUtils.setField(event, "id", id);
-        ReflectionTestUtils.setField(event, "title", "Event " + id);
-        ReflectionTestUtils.setField(event, "venue", "Arena");
-        ReflectionTestUtils.setField(event, "startsAt", Instant.parse("2027-01-01T18:00:00Z"));
-        ReflectionTestUtils.setField(event, "salesOpenAt", salesOpenAt);
-        ReflectionTestUtils.setField(event, "status", status);
-        return event;
+    public static CatalogEvent event(Long id, EventStatus status, Instant salesOpenAt) {
+        return new CatalogEvent(id, status, salesOpenAt);
     }
 
-    public static Seat seat(Long id, Event event, String price) {
+    public static Seat seat(Long id, CatalogEvent event, String price) {
         return seat(id, event, price, SeatStatus.AVAILABLE);
     }
 
-    public static Seat seat(Long id, Event event, String price, SeatStatus status) {
+    public static Seat seat(Long id, CatalogEvent event, String price, SeatStatus status) {
         Seat seat = BeanUtils.instantiateClass(Seat.class);
         ReflectionTestUtils.setField(seat, "id", id);
-        ReflectionTestUtils.setField(seat, "event", event);
+        ReflectionTestUtils.setField(seat, "eventId", event.id());
         ReflectionTestUtils.setField(seat, "section", "A");
         ReflectionTestUtils.setField(seat, "rowLabel", "1");
         ReflectionTestUtils.setField(seat, "seatNumber", id.intValue());

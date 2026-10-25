@@ -2,7 +2,11 @@ package dev.ydt.booking.controller;
 
 import com.jayway.jsonpath.JsonPath;
 import dev.ydt.booking.support.AbstractIntegrationTest;
+import jakarta.persistence.EntityManagerFactory;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -19,6 +23,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class BookingApiIntegrationTest extends AbstractIntegrationTest {
+
+    @Autowired
+    EntityManagerFactory entityManagerFactory;
 
     // Jazz Night: продажи открылись сутки назад, поэтому действует early bird
     private static final long EVENT_ID = 1;
@@ -89,6 +96,43 @@ class BookingApiIntegrationTest extends AbstractIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"eventId\": %d, \"seatIds\": [1]}".formatted(DRAFT_EVENT_ID)))
                 .andExpect(status().isUnprocessableContent());
+    }
+
+    @Test
+    void unknownEventIsNotFound() throws Exception {
+        mvc.perform(post("/api/v1/bookings")
+                        .header("X-User-Id", "alice")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"eventId\": 999, \"seatIds\": [1]}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.title").value("EventNotFound"));
+    }
+
+    // каталог лежит: это не «события нет» (404), а временная ошибка, которую можно повторить
+    @Test
+    void catalogFailureIsServiceUnavailable() throws Exception {
+        mvc.perform(post("/api/v1/bookings")
+                        .header("X-User-Id", "alice")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"eventId\": %d, \"seatIds\": [1]}".formatted(BROKEN_CATALOG_EVENT_ID)))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.title").value("CatalogUnavailable"));
+    }
+
+    // P4: без default_batch_fetch_size каждое место брони догружалось отдельным запросом
+    @Test
+    void bookingWithManySeatsLoadsInConstantQueries() throws Exception {
+        String body = createBooking("alice", availableSeats(5)).andReturn().getResponse().getContentAsString();
+        int bookingId = JsonPath.read(body, "$.id");
+        Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+        statistics.clear();
+
+        mvc.perform(get("/api/v1/bookings/{id}", bookingId).header("X-User-Id", "alice"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.seats", hasSize(5)));
+
+        // бронь + её строки booking_seats + все 5 мест одним IN-запросом
+        assertThat(statistics.getPrepareStatementCount()).isEqualTo(3);
     }
 
     @Test

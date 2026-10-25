@@ -1,10 +1,11 @@
 package dev.ydt.booking.service;
 
+import dev.ydt.booking.client.CatalogClient;
 import dev.ydt.booking.config.BookingProperties;
 import dev.ydt.booking.dto.booking.BookingResponse;
 import dev.ydt.booking.dto.booking.CreateBookingRequest;
 import dev.ydt.booking.entity.Booking;
-import dev.ydt.booking.entity.Event;
+import dev.ydt.booking.dto.event.CatalogEvent;
 import dev.ydt.booking.entity.Seat;
 import dev.ydt.booking.entity.enums.BookingStatus;
 import dev.ydt.booking.entity.enums.EventStatus;
@@ -16,7 +17,6 @@ import dev.ydt.booking.exception.InvalidSeatSelectionException;
 import dev.ydt.booking.exception.SeatUnavailableException;
 import dev.ydt.booking.mapper.BookingMapper;
 import dev.ydt.booking.repository.BookingRepository;
-import dev.ydt.booking.repository.EventRepository;
 import dev.ydt.booking.repository.IdempotencyKeyRepository;
 import dev.ydt.booking.repository.SeatRepository;
 import dev.ydt.booking.service.locking.SeatHoldStrategy;
@@ -29,6 +29,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -61,7 +63,7 @@ class BookingServiceTest {
     @Mock
     BookingRepository bookingRepository;
     @Mock
-    EventRepository eventRepository;
+    CatalogClient catalogClient;
     @Mock
     SeatRepository seatRepository;
     @Mock
@@ -72,15 +74,18 @@ class BookingServiceTest {
     IdempotencyKeyRepository idempotencyKeyRepository;
 
     private BookingService bookingService;
-    private Event event;
+    private CatalogEvent event;
     private Seat seat1;
     private Seat seat2;
 
     @BeforeEach
     void setUp() {
         BookingProperties properties = new BookingProperties(Duration.ofMinutes(10), SeatLockingMode.ATOMIC, null);
-        bookingService = new BookingService(bookingRepository, eventRepository, seatRepository, idempotencyKeyRepository,
-                pricingService, bookingMapper, properties, Clock.fixed(NOW, ZoneOffset.UTC), List.of(new InMemoryHold()));
+        // мок менеджера транзакций: TransactionTemplate просто выполняет код без настоящей транзакции
+        TransactionTemplate transactions = new TransactionTemplate(mock(PlatformTransactionManager.class));
+        bookingService = new BookingService(bookingRepository, seatRepository, idempotencyKeyRepository,
+                pricingService, bookingMapper, properties, Clock.fixed(NOW, ZoneOffset.UTC), List.of(new InMemoryHold()),
+                catalogClient, transactions);
         event = event(1L, EventStatus.ON_SALE, null);
         seat1 = seat(10L, event, "10000");
         seat2 = seat(11L, event, "20000");
@@ -88,7 +93,7 @@ class BookingServiceTest {
 
     @Test
     void createHoldsSeatsAndSavesPendingBooking() {
-        when(eventRepository.findById(1L)).thenReturn(Optional.of(event));
+        when(catalogClient.getEvent(1L)).thenReturn(event);
         when(seatRepository.findByEventIdAndIdIn(eq(1L), any())).thenReturn(List.of(seat1, seat2));
         when(pricingService.quote(event, List.of(seat1, seat2), NOW)).thenReturn(new PriceQuote(PricingType.STANDARD,
                 Map.of(10L, new BigDecimal("10000"), 11L, new BigDecimal("20000"))));
@@ -111,8 +116,8 @@ class BookingServiceTest {
 
     @Test
     void rejectsEventNotOnSale() {
-        Event draft = event(2L, EventStatus.DRAFT, null);
-        when(eventRepository.findById(2L)).thenReturn(Optional.of(draft));
+        CatalogEvent draft = event(2L, EventStatus.DRAFT, null);
+        when(catalogClient.getEvent(2L)).thenReturn(draft);
 
         assertThatThrownBy(() -> bookingService.create(USER, new CreateBookingRequest(2L, List.of(10L))))
                 .isInstanceOf(EventNotOnSaleException.class);
@@ -121,7 +126,7 @@ class BookingServiceTest {
 
     @Test
     void rejectsDuplicateSeatIds() {
-        when(eventRepository.findById(1L)).thenReturn(Optional.of(event));
+        when(catalogClient.getEvent(1L)).thenReturn(event);
 
         assertThatThrownBy(() -> bookingService.create(USER, new CreateBookingRequest(1L, List.of(10L, 10L))))
                 .isInstanceOf(InvalidSeatSelectionException.class)
@@ -130,7 +135,7 @@ class BookingServiceTest {
 
     @Test
     void rejectsSeatsOfAnotherEvent() {
-        when(eventRepository.findById(1L)).thenReturn(Optional.of(event));
+        when(catalogClient.getEvent(1L)).thenReturn(event);
         when(seatRepository.findByEventIdAndIdIn(eq(1L), any())).thenReturn(List.of(seat1));
 
         assertThatThrownBy(() -> bookingService.create(USER, new CreateBookingRequest(1L, List.of(10L, 99L))))
@@ -142,7 +147,7 @@ class BookingServiceTest {
     void reportsAllUnavailableSeats() {
         Seat held = seat(12L, event, "10000", SeatStatus.HELD);
         Seat booked = seat(13L, event, "10000", SeatStatus.BOOKED);
-        when(eventRepository.findById(1L)).thenReturn(Optional.of(event));
+        when(catalogClient.getEvent(1L)).thenReturn(event);
         when(seatRepository.findByEventIdAndIdIn(eq(1L), any())).thenReturn(List.of(seat1, held, booked));
 
         assertThatThrownBy(() -> bookingService.create(USER, new CreateBookingRequest(1L, List.of(10L, 12L, 13L))))
@@ -163,7 +168,7 @@ class BookingServiceTest {
     @Test
     void expireOverdueExpiresPendingBookings() {
         seat1.hold(NOW.minus(Duration.ofMinutes(20)));
-        Booking booking = Booking.create(event, USER, List.of(seat1), PricingType.STANDARD,
+        Booking booking = Booking.create(event.id(), USER, List.of(seat1), PricingType.STANDARD,
                 Map.of(10L, new BigDecimal("10000")), NOW.minus(Duration.ofMinutes(20)), Duration.ofMinutes(10));
         when(bookingRepository.findByStatusAndExpiresAtBefore(eq(BookingStatus.PENDING), eq(NOW), any()))
                 .thenReturn(List.of(booking));

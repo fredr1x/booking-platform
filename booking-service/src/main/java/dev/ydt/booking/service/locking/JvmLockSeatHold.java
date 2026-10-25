@@ -37,7 +37,7 @@ class JvmLockSeatHold implements SeatHoldStrategy {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             throw new IllegalStateException("JVM lock must be taken inside a transaction");
         }
-        ReentrantLock lock = locks.computeIfAbsent(seats.getFirst().getEvent().getId(), id -> new ReentrantLock());
+        ReentrantLock lock = locks.computeIfAbsent(seats.getFirst().getEventId(), id -> new ReentrantLock());
         lock.lock();
         // Отпускаем после коммита, а не в конце метода: иначе следующий поток прочитает места
         // до того, как наша запись станет видна, и гонка вернётся даже на одном инстансе.

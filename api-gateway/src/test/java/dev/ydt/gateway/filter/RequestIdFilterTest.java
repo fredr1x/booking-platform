@@ -19,13 +19,16 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Gateway проксирует на заглушку из JDK, которая запоминает, какой X-Request-Id до неё дошёл. */
+/** Gateway проксирует на две заглушки из JDK (booking и catalog), они запоминают, что до них дошло. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class RequestIdFilterTest {
 
     private static final AtomicReference<String> RECEIVED_ID = new AtomicReference<>();
     private static final AtomicReference<String> RECEIVED_HOST = new AtomicReference<>();
-    private static final HttpServer DOWNSTREAM = startDownstream();
+    private static final AtomicReference<String> BOOKING_PATH = new AtomicReference<>();
+    private static final AtomicReference<String> CATALOG_PATH = new AtomicReference<>();
+    private static final HttpServer BOOKING = startDownstream(BOOKING_PATH);
+    private static final HttpServer CATALOG = startDownstream(CATALOG_PATH);
 
     private final HttpClient client = HttpClient.newHttpClient();
 
@@ -34,12 +37,14 @@ class RequestIdFilterTest {
 
     @DynamicPropertySource
     static void routeToDownstream(DynamicPropertyRegistry registry) {
-        registry.add("BOOKING_SERVICE_URL", () -> "http://localhost:" + DOWNSTREAM.getAddress().getPort());
+        registry.add("BOOKING_SERVICE_URL", () -> "http://localhost:" + BOOKING.getAddress().getPort());
+        registry.add("CATALOG_SERVICE_URL", () -> "http://localhost:" + CATALOG.getAddress().getPort());
     }
 
     @AfterAll
     static void stopDownstream() {
-        DOWNSTREAM.stop(0);
+        BOOKING.stop(0);
+        CATALOG.stop(0);
     }
 
     @Test
@@ -77,6 +82,15 @@ class RequestIdFilterTest {
     }
 
     @Test
+    void eventsGoToCatalogAndInventoryToBooking() throws Exception {
+        assertThat(routedTo("/api/v1/events?city=Almaty")).isEqualTo(CATALOG_PATH);
+        assertThat(routedTo("/api/v1/events/7")).isEqualTo(CATALOG_PATH);
+        assertThat(routedTo("/api/v1/events/7/seats")).isEqualTo(BOOKING_PATH);
+        assertThat(routedTo("/api/v1/events/7/availability")).isEqualTo(BOOKING_PATH);
+        assertThat(routedTo("/api/v1/bookings/5")).isEqualTo(BOOKING_PATH);
+    }
+
+    @Test
     void unknownPathIsNotRouted() throws Exception {
         HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/internal/admin")).build();
 
@@ -85,7 +99,7 @@ class RequestIdFilterTest {
 
     private HttpResponse<Void> send(String requestId) throws Exception {
         RECEIVED_ID.set(null);
-        HttpRequest.Builder request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1/events"));
+        HttpRequest.Builder request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1/bookings"));
         if (requestId != null) {
             request.header(RequestIdFilter.HEADER, requestId);
         }
@@ -94,10 +108,19 @@ class RequestIdFilterTest {
         return response;
     }
 
-    private static HttpServer startDownstream() {
+    private AtomicReference<String> routedTo(String path) throws Exception {
+        BOOKING_PATH.set(null);
+        CATALOG_PATH.set(null);
+        HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path)).build();
+        assertThat(client.send(request, HttpResponse.BodyHandlers.discarding()).statusCode()).isEqualTo(200);
+        return BOOKING_PATH.get() != null ? BOOKING_PATH : CATALOG_PATH;
+    }
+
+    private static HttpServer startDownstream(AtomicReference<String> receivedPath) {
         try {
             HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
             server.createContext("/", exchange -> {
+                receivedPath.set(exchange.getRequestURI().getPath());
                 RECEIVED_ID.set(exchange.getRequestHeaders().getFirst(RequestIdFilter.HEADER));
                 RECEIVED_HOST.set(exchange.getRequestHeaders().getFirst("X-Forwarded-Host"));
                 exchange.sendResponseHeaders(200, -1);

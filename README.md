@@ -8,14 +8,16 @@ High-load бронирование билетов на микросервиса�
 
 ```bash
 docker compose up -d --wait
+./mvnw -pl catalog-service spring-boot:run
 ./mvnw -pl booking-service spring-boot:run
 ./mvnw -pl api-gateway spring-boot:run
 ```
 
-Все запросы идут через gateway на `localhost:8080`. Postgres на `localhost:5433` (`booking` / `booking`). В профиле `local` (по умолчанию) накатываются демо-данные: 3 события, у «Flash Sale Mega Concert» 20 000 мест. Вне профиля `local` адрес и пароль БД задаются переменными `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`.
+Все запросы идут через gateway на `localhost:8080`. Postgres на `localhost:5433` (`booking` / `booking`), у каждого сервиса своя база: `booking` и `catalog`. Если том Postgres создан до блока 5, базу каталога нужно создать один раз вручную: `docker exec booking-postgres psql -U booking -c "CREATE DATABASE catalog"`. В профиле `local` (по умолчанию) накатываются демо-данные: 100 000 событий в каталоге, у «Flash Sale Mega Concert» (id 2) 20 000 мест. Вне профиля `local` адрес и пароль БД задаются переменными `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`.
 
 ```bash
-curl localhost:8080/api/v1/events
+curl "localhost:8080/api/v1/events?city=City%207&size=20"   # следующая страница: &after=<nextCursor>
+curl localhost:8080/api/v1/events/1
 curl localhost:8080/api/v1/events/2/availability
 curl "localhost:8080/api/v1/events/1/seats?status=AVAILABLE&limit=10"
 
@@ -23,7 +25,7 @@ curl "localhost:8080/api/v1/events/1/seats?status=AVAILABLE&limit=10"
 curl -X POST localhost:8080/api/v1/bookings -H 'Content-Type: application/json'   -H 'X-User-Id: alice' -H 'Idempotency-Key: 7f1c-retry-1' -d '{"eventId":1,"seatIds":[1]}'
 ```
 
-Swagger UI: `localhost:8081/swagger-ui.html`.
+Swagger UI: `localhost:8081/swagger-ui.html` (booking) и `localhost:8082/swagger-ui.html` (catalog).
 
 ## Тесты
 
@@ -38,4 +40,5 @@ Swagger UI: `localhost:8081/swagger-ui.html`.
 | Модуль | Порт | Что делает |
 |---|---|---|
 | api-gateway | 8080 | Единая точка входа, маршруты, `X-Request-Id` |
-| booking-service | 8081 | События, места, брони, `Idempotency-Key` |
+| catalog-service | 8082 | События, площадки, артисты, лента с keyset-пагинацией |
+| booking-service | 8081 | Места, брони, `Idempotency-Key`; события проверяет в каталоге |

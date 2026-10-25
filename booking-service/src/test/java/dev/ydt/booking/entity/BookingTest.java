@@ -1,5 +1,6 @@
 package dev.ydt.booking.entity;
 
+import dev.ydt.booking.dto.event.CatalogEvent;
 import dev.ydt.booking.entity.enums.BookingStatus;
 import dev.ydt.booking.entity.enums.CancelReason;
 import dev.ydt.booking.entity.enums.EventStatus;
@@ -26,7 +27,7 @@ class BookingTest {
     private static final Instant NOW = Instant.parse("2026-10-16T10:00:00Z");
     private static final Duration HOLD_TTL = Duration.ofMinutes(10);
 
-    private Event event;
+    private CatalogEvent event;
     private Seat seat1;
     private Seat seat2;
 
@@ -54,7 +55,7 @@ class BookingTest {
     void createRejectsSeatThatIsNotHeld() {
         Seat notHeld = seat(3L, event, "5000", SeatStatus.AVAILABLE);
 
-        assertThatThrownBy(() -> Booking.create(event, "user-1", List.of(notHeld), PricingType.STANDARD,
+        assertThatThrownBy(() -> Booking.create(event.id(), "user-1", List.of(notHeld), PricingType.STANDARD,
                 Map.of(3L, new BigDecimal("5000")), NOW, HOLD_TTL))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("must be held");
@@ -125,7 +126,7 @@ class BookingTest {
     }
 
     private Booking newBooking() {
-        return Booking.create(event, "user-1", List.of(seat1, seat2), PricingType.STANDARD,
+        return Booking.create(event.id(), "user-1", List.of(seat1, seat2), PricingType.STANDARD,
                 Map.of(1L, new BigDecimal("10000"), 2L, new BigDecimal("15000")), NOW, HOLD_TTL);
     }
 }

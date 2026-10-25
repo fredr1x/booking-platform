@@ -15,12 +15,9 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
@@ -50,9 +47,9 @@ public class Booking {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "event_id", nullable = false)
-    private Event event;
+    // событие живёт в catalog-service, здесь только его id
+    @Column(name = "event_id", nullable = false)
+    private Long eventId;
 
     @Column(name = "user_id", nullable = false)
     private String userId;
@@ -104,10 +101,10 @@ public class Booking {
      *
      * @param seatPrices итоговая цена каждого места по id, посчитанная стратегией ценообразования
      */
-    public static Booking create(Event event, String userId, List<Seat> seats, PricingType pricingType,
+    public static Booking create(Long eventId, String userId, List<Seat> seats, PricingType pricingType,
                                  Map<Long, BigDecimal> seatPrices, Instant now, Duration holdTtl) {
         Booking booking = new Booking();
-        booking.event = event;
+        booking.eventId = eventId;
         booking.userId = userId;
         booking.pricingType = pricingType;
         booking.createdAt = now;

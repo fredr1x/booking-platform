@@ -6,6 +6,11 @@ spring:
     hikari:
       # тест на гонку ставит в очередь к пулу из 20 соединений тысячу потоков, 2 секунды ожидания им мало
       connection-timeout: 60000
+  jpa:
+    properties:
+      hibernate:
+        # счётчик выполненных SQL: по нему тест ловит N+1
+        generate_statistics: true
 
 booking:
   scheduling:

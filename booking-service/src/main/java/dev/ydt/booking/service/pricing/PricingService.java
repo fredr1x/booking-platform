@@ -1,6 +1,6 @@
 package dev.ydt.booking.service.pricing;
 
-import dev.ydt.booking.entity.Event;
+import dev.ydt.booking.dto.event.CatalogEvent;
 import dev.ydt.booking.entity.Seat;
 import dev.ydt.booking.entity.enums.SeatStatus;
 import dev.ydt.booking.repository.SeatRepository;
@@ -21,7 +21,7 @@ public class PricingService {
     private final List<PricingStrategy> strategies;
     private final SeatRepository seatRepository;
 
-    public PriceQuote quote(Event event, List<Seat> seats, Instant now) {
+    public PriceQuote quote(CatalogEvent event, List<Seat> seats, Instant now) {
         PricingContext context = context(event, now);
         PricingStrategy strategy = strategies.stream()
                 .filter(s -> s.supports(context))
@@ -35,15 +35,15 @@ public class PricingService {
         return new PriceQuote(strategy.type(), prices);
     }
 
-    private PricingContext context(Event event, Instant now) {
+    private PricingContext context(CatalogEvent event, Instant now) {
         long total = 0;
         long available = 0;
-        for (SeatRepository.StatusCount count : seatRepository.countByStatus(event.getId())) {
+        for (SeatRepository.StatusCount count : seatRepository.countByStatus(event.id())) {
             total += count.getCount();
             if (count.getStatus() == SeatStatus.AVAILABLE) {
                 available = count.getCount();
             }
         }
-        return new PricingContext(now, event.getSalesOpenAt(), total, total - available);
+        return new PricingContext(now, event.salesOpenAt(), total, total - available);
     }
 }

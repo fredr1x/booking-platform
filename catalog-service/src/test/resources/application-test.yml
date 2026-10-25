@@ -1,0 +1,9 @@
+# Профиль интеграционных тестов. Адрес БД подставляет Testcontainers (@ServiceConnection).
+spring:
+  flyway:
+    locations: classpath:db/migration,classpath:db/seed
+  jpa:
+    properties:
+      hibernate:
+        # счётчик выполненных SQL: по нему тесты ловят N+1
+        generate_statistics: true

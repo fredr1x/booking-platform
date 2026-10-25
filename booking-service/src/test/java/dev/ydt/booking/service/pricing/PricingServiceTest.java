@@ -1,6 +1,6 @@
 package dev.ydt.booking.service.pricing;
 
-import dev.ydt.booking.entity.Event;
+import dev.ydt.booking.dto.event.CatalogEvent;
 import dev.ydt.booking.entity.Seat;
 import dev.ydt.booking.entity.enums.EventStatus;
 import dev.ydt.booking.entity.enums.PricingType;
@@ -33,7 +33,7 @@ class PricingServiceTest {
     SeatRepository seatRepository;
 
     private PricingService pricingService;
-    private Event event;
+    private CatalogEvent event;
     private Seat seat;
 
     @BeforeEach

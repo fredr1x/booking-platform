@@ -8,14 +8,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+// Список и карточки событий теперь в catalog-service, здесь только инвентарь мест.
 class EventApiIntegrationTest extends AbstractIntegrationTest {
-
-    @Test
-    void migrationsAndSeedAreApplied() throws Exception {
-        mvc.perform(get("/api/v1/events"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(3)));
-    }
 
     // Событие 3 в статусе DRAFT, его никто не бронирует, поэтому все 200 мест свободны.
     @Test
@@ -34,8 +28,8 @@ class EventApiIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void unknownEventReturns404() throws Exception {
-        mvc.perform(get("/api/v1/events/999"))
+    void eventWithoutSeatsReturns404() throws Exception {
+        mvc.perform(get("/api/v1/events/999/availability"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.title").value("EventNotFound"));
     }

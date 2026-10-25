@@ -1,7 +1,6 @@
 package dev.ydt.booking.controller;
 
 import dev.ydt.booking.dto.event.AvailabilityResponse;
-import dev.ydt.booking.dto.event.EventResponse;
 import dev.ydt.booking.dto.seat.SeatResponse;
 import dev.ydt.booking.entity.enums.SeatStatus;
 import dev.ydt.booking.service.EventService;
@@ -16,22 +15,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+// Только места. Список и карточки событий отдаёт catalog-service, gateway разводит пути.
 @RestController
 @RequestMapping("/api/v1/events")
 @RequiredArgsConstructor
 public class EventController {
 
     private final EventService eventService;
-
-    @GetMapping
-    public List<EventResponse> list() {
-        return eventService.findAll();
-    }
-
-    @GetMapping("/{id}")
-    public EventResponse get(@PathVariable Long id) {
-        return eventService.findById(id);
-    }
 
     @GetMapping("/{id}/availability")
     public AvailabilityResponse availability(@PathVariable Long id) {

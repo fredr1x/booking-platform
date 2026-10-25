@@ -21,6 +21,8 @@ services:
       - "5433:5432"   # 5432 на хосте часто занят локальным Postgres
     volumes:
       - postgres-data:/var/lib/postgresql/data
+      # скрипты выполняются только при создании тома: здесь создаётся база catalog
+      - ./deploy/compose/postgres:/docker-entrypoint-initdb.d:ro
     mem_limit: 512m
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U booking -d booking"]

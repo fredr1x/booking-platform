@@ -145,7 +145,9 @@ booking-project/
 
 ---
 
-## Блок 5 · 25.10 · Каталог, индексы, N+1
+## Блок 5 · 25.10 · Каталог, индексы, N+1 ✅
+
+**Сделано:** модуль `catalog-service` (порт 8082, база `catalog`): площадки, артисты, 100 000 событий. Частичные индексы `(city, starts_at, id) WHERE status = 'ON_SALE'`, keyset-пагинация с непрозрачным курсором: лента 22.8 → 1.1 мс, страница 3 000 через OFFSET 87 мс против 0.7 мс через keyset. N+1 закрыт JOIN FETCH и `default_batch_fetch_size`: страница из 20 событий за 2 запроса, бронь за 3 (P4). booking-service больше не хранит события (`V5`), проверяет их в каталоге через `RestClient` с таймаутом, до транзакции, со склейкой одновременных запросов. Gateway разводит `/events/**` в каталог и `/events/*/seats` в booking. Решения и цифры в [ADR 0002](docs/adr/0002-catalog-queries.md). Отчёт продаж на `JdbcTemplate` и `tsvector` не делали (поиск будет в Elasticsearch, блок 7б). 101 тест.
 
 **Задачи**
 1. Новый модуль `catalog-service` с отдельной базой `catalog`: `venues`, `events`, `performers`, `event_performers`, `price_tiers`. Таблица `events` переезжает сюда из booking-service. В booking остаётся только `event_id` и инвентарь мест.

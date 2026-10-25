@@ -10,7 +10,6 @@ import org.mapstruct.Mapping;
 @Mapper
 public interface BookingMapper {
 
-    @Mapping(target = "eventId", source = "event.id")
     BookingResponse toResponse(Booking booking);
 
     @Mapping(target = "seatId", source = "seat.id")

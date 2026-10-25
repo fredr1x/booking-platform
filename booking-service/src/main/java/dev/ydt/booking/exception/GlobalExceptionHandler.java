@@ -74,6 +74,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             case EventNotOnSaleException e -> HttpStatus.UNPROCESSABLE_CONTENT;
             case InvalidSeatSelectionException e -> HttpStatus.BAD_REQUEST;
             case IdempotencyKeyReusedException e -> HttpStatus.UNPROCESSABLE_CONTENT;
+            case CatalogUnavailableException e -> HttpStatus.SERVICE_UNAVAILABLE;
         };
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, ex.getMessage());
         problem.setTitle(ex.getClass().getSimpleName().replace("Exception", ""));

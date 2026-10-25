@@ -21,7 +21,7 @@ public interface SeatRepository extends JpaRepository<Seat, Long> {
     @Query("""
             select s.status as status, count(s) as count
             from Seat s
-            where s.event.id = :eventId
+            where s.eventId = :eventId
             group by s.status
             """)
     List<StatusCount> countByStatus(@Param("eventId") Long eventId);

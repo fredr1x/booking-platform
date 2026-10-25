@@ -22,8 +22,16 @@ spring:
         jdbc:
           batch_size: 50
         order_updates: true
+        # места брони в ответе грузятся одним IN-запросом, а не по запросу на место (N+1)
+        default_batch_fetch_size: 50
   flyway:
     locations: classpath:db/migration
+
+# Вне профиля local адрес каталога задаёт переменная CATALOG_URL
+catalog:
+  timeout: 2s
+  # одинаковые проверки события на старте продаж склеиваются, ответ каталога живёт в памяти столько
+  cache-ttl: 5s
 
 booking:
   hold-ttl: 10m
@@ -63,3 +71,6 @@ spring:
     password: booking
   flyway:
     locations: classpath:db/migration,classpath:db/seed
+
+catalog:
+  url: http://localhost:8082

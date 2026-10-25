@@ -1,23 +1,22 @@
 package dev.ydt.booking.service;
 
+import dev.ydt.booking.client.CatalogClient;
 import dev.ydt.booking.config.BookingProperties;
 import dev.ydt.booking.dto.booking.BookingResponse;
 import dev.ydt.booking.dto.booking.CreateBookingRequest;
+import dev.ydt.booking.dto.event.CatalogEvent;
 import dev.ydt.booking.entity.Booking;
-import dev.ydt.booking.entity.Event;
 import dev.ydt.booking.entity.IdempotencyKey;
 import dev.ydt.booking.entity.Seat;
 import dev.ydt.booking.entity.enums.BookingStatus;
 import dev.ydt.booking.entity.enums.CancelReason;
 import dev.ydt.booking.entity.enums.EventStatus;
 import dev.ydt.booking.exception.BookingNotFoundException;
-import dev.ydt.booking.exception.EventNotFoundException;
 import dev.ydt.booking.exception.EventNotOnSaleException;
 import dev.ydt.booking.exception.IdempotencyKeyReusedException;
 import dev.ydt.booking.exception.InvalidSeatSelectionException;
 import dev.ydt.booking.mapper.BookingMapper;
 import dev.ydt.booking.repository.BookingRepository;
-import dev.ydt.booking.repository.EventRepository;
 import dev.ydt.booking.repository.IdempotencyKeyRepository;
 import dev.ydt.booking.repository.SeatRepository;
 import dev.ydt.booking.service.pricing.PriceQuote;
@@ -27,7 +26,9 @@ import dev.ydt.booking.service.locking.SeatLockingMode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -50,7 +51,6 @@ public class BookingService {
     private static final Duration IDEMPOTENCY_KEY_TTL = Duration.ofHours(24);
 
     private final BookingRepository bookingRepository;
-    private final EventRepository eventRepository;
     private final SeatRepository seatRepository;
     private final IdempotencyKeyRepository idempotencyKeyRepository;
     private final PricingService pricingService;
@@ -58,7 +58,10 @@ public class BookingService {
     private final BookingProperties properties;
     private final Clock clock;
     private final List<SeatHoldStrategy> seatHoldStrategies;
+    private final CatalogClient catalogClient;
+    private final TransactionTemplate transactionTemplate;
 
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public BookingResponse create(String userId, CreateBookingRequest request) {
         return create(userId, request, properties.seatLocking());
     }
@@ -67,42 +70,42 @@ public class BookingService {
      * Повтор с тем же ключом возвращает уже созданную бронь. Ключ пишется в той же транзакции, что и бронь:
      * если бронь не создалась (место занято), ключ откатится вместе с ней и повтор выполнится заново.
      */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public BookingResponse create(String userId, String idempotencyKey, CreateBookingRequest request) {
         if (idempotencyKey == null) {
             return create(userId, request);
         }
         IdempotencyKey.Id keyId = new IdempotencyKey.Id(userId, idempotencyKey);
         String requestHash = sha256(request.toString());
-        if (idempotencyKeyRepository.insertIfAbsent(userId, idempotencyKey, requestHash, clock.instant()) == 0) {
-            IdempotencyKey saved = idempotencyKeyRepository.findById(keyId).orElseThrow();
-            if (!saved.getRequestHash().equals(requestHash)) {
-                throw new IdempotencyKeyReusedException(idempotencyKey);
-            }
-            return get(saved.getBookingId(), userId);
+        // известный ключ отвечаем без похода в каталог: событие могло уже уйти с продажи, а бронь есть
+        BookingResponse replayed = transactionTemplate.execute(status -> idempotencyKeyRepository.findById(keyId)
+                .map(saved -> replay(saved, requestHash, userId))
+                .orElse(null));
+        if (replayed != null) {
+            return replayed;
         }
-        BookingResponse booking = create(userId, request);
-        idempotencyKeyRepository.attachBooking(keyId, booking.id());
-        return booking;
+
+        CatalogEvent event = onSaleEvent(request.eventId());
+        return transactionTemplate.execute(status -> {
+            if (idempotencyKeyRepository.insertIfAbsent(userId, idempotencyKey, requestHash, clock.instant()) == 0) {
+                return replay(idempotencyKeyRepository.findById(keyId).orElseThrow(), requestHash, userId);
+            }
+            BookingResponse booking = hold(userId, request, properties.seatLocking(), event);
+            idempotencyKeyRepository.attachBooking(keyId, booking.id());
+            return booking;
+        });
     }
 
-    /** Явный выбор стратегии нужен тесту на гонку, который сравнивает все способы на одной базе. */
+    /**
+     * Явный выбор стратегии нужен тесту на гонку, который сравнивает все способы на одной базе.
+     * <p>
+     * Каталог спрашиваем до транзакции: иначе на время HTTP-вызова бронь держала бы соединение
+     * из пула на 20, и медленный каталог исчерпал бы пул для всех остальных запросов.
+     */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public BookingResponse create(String userId, CreateBookingRequest request, SeatLockingMode mode) {
-        Instant now = clock.instant();
-        Event event = eventRepository.findById(request.eventId())
-                .orElseThrow(() -> new EventNotFoundException(request.eventId()));
-        if (event.getStatus() != EventStatus.ON_SALE) {
-            throw new EventNotOnSaleException(event.getId(), event.getStatus());
-        }
-
-        // Быстрый отказ по чтению без блокировок. Защиты от гонки он не даёт, её даёт стратегия ниже.
-        List<Seat> seats = loadSeats(event.getId(), request.seatIds());
-        SeatHoldStrategy.requireAvailable(seats);
-        strategy(mode).hold(seats, now);
-
-        PriceQuote quote = pricingService.quote(event, seats, now);
-        Booking booking = Booking.create(event, userId, seats, quote.type(), quote.seatPrices(), now,
-                properties.holdTtl());
-        return bookingMapper.toResponse(bookingRepository.save(booking));
+        CatalogEvent event = onSaleEvent(request.eventId());
+        return transactionTemplate.execute(status -> hold(userId, request, mode, event));
     }
 
     @Transactional(readOnly = true)
@@ -127,6 +130,35 @@ public class BookingService {
 
     public int purgeIdempotencyKeys() {
         return idempotencyKeyRepository.deleteCreatedBefore(clock.instant().minus(IDEMPOTENCY_KEY_TTL));
+    }
+
+    private CatalogEvent onSaleEvent(Long eventId) {
+        CatalogEvent event = catalogClient.getEvent(eventId);
+        if (event.status() != EventStatus.ON_SALE) {
+            throw new EventNotOnSaleException(event.id(), event.status());
+        }
+        return event;
+    }
+
+    private BookingResponse hold(String userId, CreateBookingRequest request, SeatLockingMode mode,
+                                 CatalogEvent event) {
+        Instant now = clock.instant();
+        // Быстрый отказ по чтению без блокировок. Защиты от гонки он не даёт, её даёт стратегия ниже.
+        List<Seat> seats = loadSeats(event.id(), request.seatIds());
+        SeatHoldStrategy.requireAvailable(seats);
+        strategy(mode).hold(seats, now);
+
+        PriceQuote quote = pricingService.quote(event, seats, now);
+        Booking booking = Booking.create(event.id(), userId, seats, quote.type(), quote.seatPrices(), now,
+                properties.holdTtl());
+        return bookingMapper.toResponse(bookingRepository.save(booking));
+    }
+
+    private BookingResponse replay(IdempotencyKey saved, String requestHash, String userId) {
+        if (!saved.getRequestHash().equals(requestHash)) {
+            throw new IdempotencyKeyReusedException(saved.getId().getKey());
+        }
+        return bookingMapper.toResponse(getOwned(saved.getBookingId(), userId));
     }
 
     private SeatHoldStrategy strategy(SeatLockingMode mode) {

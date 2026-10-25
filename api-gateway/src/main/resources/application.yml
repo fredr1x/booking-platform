@@ -9,12 +9,19 @@ spring:
           # Регэксп: от каких прокси перед gateway верить уже пришедшим X-Forwarded-*. Пока перед ним никого нет,
           # верим только локальным адресам, чужие заголовки от клиента gateway перезапишет.
           trusted-proxies: 127\.0\.0\.1|0:0:0:0:0:0:0:1
+          # Маршруты проверяются по order: места и наличие события отдаёт booking-service (инвентарь),
+          # всё остальное про события — catalog-service. Без order запрос /events/1/seats ушёл бы в каталог.
           routes:
-            # в блоке 5 сюда добавится catalog-service, /api/v1/events переедет к нему
             - id: booking-service
               uri: ${BOOKING_SERVICE_URL:http://localhost:8081}
+              order: 0
               predicates:
-                - Path=/api/v1/**
+                - Path=/api/v1/bookings/**,/api/v1/events/*/seats,/api/v1/events/*/availability
+            - id: catalog-service
+              uri: ${CATALOG_SERVICE_URL:http://localhost:8082}
+              order: 1
+              predicates:
+                - Path=/api/v1/events,/api/v1/events/**
 
 server:
   port: 8080

@@ -108,7 +108,8 @@ class SeatRaceIntegrationTest extends AbstractIntegrationTest {
                         "--spring.datasource.username=" + POSTGRES.getUsername(),
                         "--spring.datasource.password=" + POSTGRES.getPassword(),
                         "--spring.datasource.hikari.connection-timeout=60000",
-                        "--booking.scheduling.enabled=false")) {
+                        "--booking.scheduling.enabled=false",
+                        "--catalog.url=" + catalogUrl())) {
             BookingService other = secondInstance.getBean(BookingService.class);
 
             RaceResult result = withoutSafetyNet(seat, () -> race(SeatLockingMode.JVM_LOCK, i -> seat,
