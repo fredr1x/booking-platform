@@ -90,6 +90,16 @@ class RequestIdFilterTest {
         assertThat(routedTo("/api/v1/bookings/5")).isEqualTo(BOOKING_PATH);
     }
 
+    // страница симулятора лежит в static/ самого gateway, не проксируется
+    @Test
+    void simulatorPageIsServed() throws Exception {
+        HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/")).build();
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.body()).contains("<title>Booking Simulator</title>");
+    }
+
     @Test
     void unknownPathIsNotRouted() throws Exception {
         HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/internal/admin")).build();

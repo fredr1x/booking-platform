@@ -25,6 +25,8 @@ curl "localhost:8080/api/v1/events/1/seats?status=AVAILABLE&limit=10"
 curl -X POST localhost:8080/api/v1/bookings -H 'Content-Type: application/json'   -H 'X-User-Id: alice' -H 'Idempotency-Key: 7f1c-retry-1' -d '{"eventId":1,"seatIds":[1]}'
 ```
 
+**Симулятор броней:** `localhost:8080` (страница лежит в `api-gateway/src/main/resources/static`). Выбираешь событие, число покупателей и сценарий: все на одно место (гонка), каждый на своё, или с повтором по `Idempotency-Key`. Страница показывает ответы по кодам, p50/p95/p99, гистограмму задержек, места события в реальном времени и последние брони с отменой. Нагрузку она не создаёт (браузер держит около 6 соединений на хост), для цифр будет k6.
+
 Swagger UI: `localhost:8081/swagger-ui.html` (booking) и `localhost:8082/swagger-ui.html` (catalog).
 
 ## Тесты
