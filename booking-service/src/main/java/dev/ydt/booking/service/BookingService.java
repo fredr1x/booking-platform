@@ -39,7 +39,6 @@ import java.time.Instant;
 import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 
 @Service
 @Transactional
@@ -75,7 +74,7 @@ public class BookingService {
         if (idempotencyKey == null) {
             return create(userId, request);
         }
-        IdempotencyKey.Id keyId = new IdempotencyKey.Id(userId, idempotencyKey);
+        var keyId = new IdempotencyKey.Id(userId, idempotencyKey);
         String requestHash = sha256(request.toString());
         // известный ключ отвечаем без похода в каталог: событие могло уже уйти с продажи, а бронь есть
         BookingResponse replayed = transactionTemplate.execute(status -> idempotencyKeyRepository.findById(keyId)
@@ -149,7 +148,7 @@ public class BookingService {
         strategy(mode).hold(seats, now);
 
         PriceQuote quote = pricingService.quote(event, seats, now);
-        Booking booking = Booking.create(event.id(), userId, seats, quote.type(), quote.seatPrices(), now,
+        var booking = Booking.create(event.id(), userId, seats, quote.type(), quote.seatPrices(), now,
                 properties.holdTtl());
         return bookingMapper.toResponse(bookingRepository.save(booking));
     }
@@ -169,7 +168,7 @@ public class BookingService {
     }
 
     private List<Seat> loadSeats(Long eventId, List<Long> seatIds) {
-        Set<Long> uniqueIds = new LinkedHashSet<>(seatIds);
+        var uniqueIds = new LinkedHashSet<>(seatIds);
         if (uniqueIds.size() != seatIds.size()) {
             throw new InvalidSeatSelectionException("Seat ids must be unique");
         }

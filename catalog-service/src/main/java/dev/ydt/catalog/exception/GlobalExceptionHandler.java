@@ -21,7 +21,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     private static ProblemDetail problem(HttpStatus status, String title, RuntimeException ex) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, ex.getMessage());
+        var problem = ProblemDetail.forStatusAndDetail(status, ex.getMessage());
         problem.setTitle(title);
         return problem;
     }

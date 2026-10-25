@@ -8,5 +8,6 @@ import java.util.List;
 
 public record CreateBookingRequest(
         @NotNull Long eventId,
-        @NotEmpty @Size(max = 10) List<@NotNull Long> seatIds) {
+        @NotEmpty @Size(max = 10) List<@NotNull Long> seatIds
+) {
 }

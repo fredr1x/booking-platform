@@ -11,7 +11,6 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -28,7 +27,7 @@ public class PricingService {
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("No pricing strategy for " + context));
 
-        Map<Long, BigDecimal> prices = new LinkedHashMap<>();
+        var prices = new LinkedHashMap<Long, BigDecimal>();
         for (Seat seat : seats) {
             prices.put(seat.getId(), strategy.price(seat.getPrice(), context));
         }

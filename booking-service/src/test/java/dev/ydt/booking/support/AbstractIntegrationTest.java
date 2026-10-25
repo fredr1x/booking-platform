@@ -64,7 +64,7 @@ public abstract class AbstractIntegrationTest {
         try {
             // тест на гонку шлёт в каталог 1000 запросов разом: нужны большая очередь соединений
             // и поток на запрос, иначе заглушка сама станет узким местом и начнёт отказывать
-            HttpServer server = HttpServer.create(new InetSocketAddress(0), 2000);
+            var server = HttpServer.create(new InetSocketAddress(0), 2000);
             server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
             server.createContext("/api/v1/events/", AbstractIntegrationTest::catalogResponse);
             server.start();
@@ -77,7 +77,7 @@ public abstract class AbstractIntegrationTest {
     private static void catalogResponse(HttpExchange exchange) throws IOException {
         CATALOG_REQUESTS.incrementAndGet();
         String id = exchange.getRequestURI().getPath().substring("/api/v1/events/".length());
-        Instant now = Instant.now();
+        var now = Instant.now();
         String body = switch (id) {
             // Jazz Night: продажи открылись сутки назад, поэтому действует early bird
             case "1" -> event(1, "ON_SALE", now.minus(Duration.ofDays(1)));

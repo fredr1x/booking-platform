@@ -80,9 +80,9 @@ class BookingServiceTest {
 
     @BeforeEach
     void setUp() {
-        BookingProperties properties = new BookingProperties(Duration.ofMinutes(10), SeatLockingMode.ATOMIC, null);
+        var properties = new BookingProperties(Duration.ofMinutes(10), SeatLockingMode.ATOMIC, null);
         // мок менеджера транзакций: TransactionTemplate просто выполняет код без настоящей транзакции
-        TransactionTemplate transactions = new TransactionTemplate(mock(PlatformTransactionManager.class));
+        var transactions = new TransactionTemplate(mock(PlatformTransactionManager.class));
         bookingService = new BookingService(bookingRepository, seatRepository, idempotencyKeyRepository,
                 pricingService, bookingMapper, properties, Clock.fixed(NOW, ZoneOffset.UTC), List.of(new InMemoryHold()),
                 catalogClient, transactions);
@@ -98,12 +98,12 @@ class BookingServiceTest {
         when(pricingService.quote(event, List.of(seat1, seat2), NOW)).thenReturn(new PriceQuote(PricingType.STANDARD,
                 Map.of(10L, new BigDecimal("10000"), 11L, new BigDecimal("20000"))));
         when(bookingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        BookingResponse response = mock(BookingResponse.class);
+        var response = mock(BookingResponse.class);
         when(bookingMapper.toResponse(any())).thenReturn(response);
 
         BookingResponse result = bookingService.create(USER, new CreateBookingRequest(1L, List.of(10L, 11L)));
 
-        ArgumentCaptor<Booking> saved = ArgumentCaptor.forClass(Booking.class);
+        var saved = ArgumentCaptor.forClass(Booking.class);
         verify(bookingRepository).save(saved.capture());
         Booking booking = saved.getValue();
         assertThat(result).isSameAs(response);
@@ -168,7 +168,7 @@ class BookingServiceTest {
     @Test
     void expireOverdueExpiresPendingBookings() {
         seat1.hold(NOW.minus(Duration.ofMinutes(20)));
-        Booking booking = Booking.create(event.id(), USER, List.of(seat1), PricingType.STANDARD,
+        var booking = Booking.create(event.id(), USER, List.of(seat1), PricingType.STANDARD,
                 Map.of(10L, new BigDecimal("10000")), NOW.minus(Duration.ofMinutes(20)), Duration.ofMinutes(10));
         when(bookingRepository.findByStatusAndExpiresAtBefore(eq(BookingStatus.PENDING), eq(NOW), any()))
                 .thenReturn(List.of(booking));

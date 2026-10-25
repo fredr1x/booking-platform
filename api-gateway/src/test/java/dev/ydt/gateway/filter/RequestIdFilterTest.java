@@ -93,7 +93,7 @@ class RequestIdFilterTest {
     // страница симулятора лежит в static/ самого gateway, не проксируется
     @Test
     void simulatorPageIsServed() throws Exception {
-        HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/")).build();
+        var request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/")).build();
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
         assertThat(response.statusCode()).isEqualTo(200);
@@ -102,14 +102,14 @@ class RequestIdFilterTest {
 
     @Test
     void unknownPathIsNotRouted() throws Exception {
-        HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/internal/admin")).build();
+        var request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/internal/admin")).build();
 
         assertThat(client.send(request, HttpResponse.BodyHandlers.discarding()).statusCode()).isEqualTo(404);
     }
 
     private HttpResponse<Void> send(String requestId) throws Exception {
         RECEIVED_ID.set(null);
-        HttpRequest.Builder request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1/bookings"));
+        var request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1/bookings"));
         if (requestId != null) {
             request.header(RequestIdFilter.HEADER, requestId);
         }
@@ -121,14 +121,14 @@ class RequestIdFilterTest {
     private AtomicReference<String> routedTo(String path) throws Exception {
         BOOKING_PATH.set(null);
         CATALOG_PATH.set(null);
-        HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path)).build();
+        var request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path)).build();
         assertThat(client.send(request, HttpResponse.BodyHandlers.discarding()).statusCode()).isEqualTo(200);
         return BOOKING_PATH.get() != null ? BOOKING_PATH : CATALOG_PATH;
     }
 
     private static HttpServer startDownstream(AtomicReference<String> receivedPath) {
         try {
-            HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+            var server = HttpServer.create(new InetSocketAddress(0), 0);
             server.createContext("/", exchange -> {
                 receivedPath.set(exchange.getRequestURI().getPath());
                 RECEIVED_ID.set(exchange.getRequestHeaders().getFirst(RequestIdFilter.HEADER));

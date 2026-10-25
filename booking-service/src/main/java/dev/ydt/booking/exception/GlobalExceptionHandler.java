@@ -76,7 +76,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             case IdempotencyKeyReusedException e -> HttpStatus.UNPROCESSABLE_CONTENT;
             case CatalogUnavailableException e -> HttpStatus.SERVICE_UNAVAILABLE;
         };
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, ex.getMessage());
+        var problem = ProblemDetail.forStatusAndDetail(status, ex.getMessage());
         problem.setTitle(ex.getClass().getSimpleName().replace("Exception", ""));
         if (ex instanceof SeatUnavailableException e) {
             problem.setProperty("seatIds", e.getSeatIds());
@@ -87,7 +87,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     // Две транзакции одновременно поменяли одну бронь или место (@Version).
     @ExceptionHandler(OptimisticLockingFailureException.class)
     public ProblemDetail handleOptimisticLock(OptimisticLockingFailureException ex) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+        var problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
                 "Resource was modified concurrently, retry the request");
         problem.setTitle("ConcurrentModification");
         return problem;
@@ -97,7 +97,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     // (например, уникальный индекс uq_booking_seats_active_seat).
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ProblemDetail handleIntegrityViolation(DataIntegrityViolationException ex) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+        var problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
                 "Request conflicts with the current state, retry the request");
         problem.setTitle("Conflict");
         return problem;

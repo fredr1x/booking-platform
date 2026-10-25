@@ -25,7 +25,7 @@ class PricingStrategiesTest {
 
     @Test
     void standardKeepsBasePrice() {
-        PricingContext context = new PricingContext(SALES_OPEN, SALES_OPEN, 100, 0);
+        var context = new PricingContext(SALES_OPEN, SALES_OPEN, 100, 0);
 
         assertThat(standard.supports(context)).isTrue();
         assertThat(standard.price(new BigDecimal("12000"), context)).isEqualByComparingTo("12000");

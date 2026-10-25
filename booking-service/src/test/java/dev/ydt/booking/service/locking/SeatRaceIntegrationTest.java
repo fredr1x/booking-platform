@@ -122,7 +122,7 @@ class SeatRaceIntegrationTest extends AbstractIntegrationTest {
 
     @AfterAll
     static void printReport() {
-        StringBuilder table = new StringBuilder("\n| Сценарий | Успешно | Конфликтов | Ошибок | Время, мс |\n|---|---|---|---|---|\n");
+        var table = new StringBuilder("\n| Сценарий | Успешно | Конфликтов | Ошибок | Время, мс |\n|---|---|---|---|---|\n");
         REPORT.entrySet().stream().sorted(Map.Entry.comparingByKey())
                 .forEach(e -> table.append("| ").append(e.getKey()).append(" | ").append(e.getValue()).append(" |\n"));
         log.info("Seat race report:{}", table);
@@ -130,10 +130,10 @@ class SeatRaceIntegrationTest extends AbstractIntegrationTest {
 
     private RaceResult race(SeatLockingMode mode, IntFunction<Long> seatOf, IntFunction<BookingService> serviceOf)
             throws InterruptedException {
-        CountDownLatch start = new CountDownLatch(1);
-        AtomicInteger succeeded = new AtomicInteger();
-        AtomicInteger conflicts = new AtomicInteger();
-        AtomicInteger errors = new AtomicInteger();
+        var start = new CountDownLatch(1);
+        var succeeded = new AtomicInteger();
+        var conflicts = new AtomicInteger();
+        var errors = new AtomicInteger();
 
         long startedAt;
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {

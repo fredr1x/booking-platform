@@ -10,7 +10,10 @@ import java.util.Base64;
  * Позиция в ленте: последнее показанное событие. Клиенту отдаётся непрозрачной строкой,
  * чтобы формат можно было менять, не ломая клиентов.
  */
-public record EventCursor(Instant startsAt, long id) {
+public record EventCursor(
+        Instant startsAt,
+        long id
+) {
 
     public String encode() {
         String raw = startsAt + "|" + id;
@@ -20,7 +23,7 @@ public record EventCursor(Instant startsAt, long id) {
     // курсор приходит от клиента, поэтому любой мусор превращаем в 400, а не в 500
     public static EventCursor decode(String cursor) {
         try {
-            String raw = new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8);
+            var raw = new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8);
             int separator = raw.indexOf('|');
             return new EventCursor(Instant.parse(raw.substring(0, separator)),
                     Long.parseLong(raw.substring(separator + 1)));

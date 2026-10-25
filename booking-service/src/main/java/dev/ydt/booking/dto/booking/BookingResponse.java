@@ -21,5 +21,6 @@ public record BookingResponse(
         CancelReason cancelReason,
         Instant closedAt,
         Instant createdAt,
-        List<BookingSeatResponse> seats) {
+        List<BookingSeatResponse> seats
+) {
 }

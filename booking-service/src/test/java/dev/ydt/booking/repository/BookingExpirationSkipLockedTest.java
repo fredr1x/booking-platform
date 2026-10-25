@@ -30,8 +30,8 @@ class BookingExpirationSkipLockedTest extends AbstractIntegrationTest {
     @Test
     void secondSweeperSkipsBookingsLockedByFirst() throws Exception {
         long bookingId = overduePendingBooking();
-        CountDownLatch firstLocked = new CountDownLatch(1);
-        CountDownLatch secondDone = new CountDownLatch(1);
+        var firstLocked = new CountDownLatch(1);
+        var secondDone = new CountDownLatch(1);
 
         CompletableFuture<List<Long>> first = CompletableFuture.supplyAsync(() -> tx.execute(status -> {
             List<Long> ids = sweep();
