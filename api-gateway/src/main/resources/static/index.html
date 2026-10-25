@@ -1,310 +1,520 @@
 <!doctype html>
 <html lang="ru">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Booking Simulator</title>
-<style>
-  :root {
-    --bg: #f6f7f9; --card: #fff; --text: #1b1f24; --muted: #667085; --border: #e3e6ea;
-    --accent: #2563eb; --ok: #16a34a; --warn: #d97706; --err: #dc2626; --held: #f59e0b; --free: #22c55e;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #0f1216; --card: #171b21; --text: #e6e9ee; --muted: #8b95a5; --border: #2a3039;
-      --accent: #60a5fa; --ok: #4ade80; --warn: #fbbf24; --err: #f87171; --held: #fbbf24; --free: #4ade80;
-    }
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
-  main { max-width: 1100px; margin: 0 auto; padding: 20px 16px 48px; display: grid; gap: 16px; }
-  h1 { font-size: 20px; margin: 0; }
-  h2 { font-size: 15px; margin: 0 0 12px; }
-  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
-  .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
-  label { display: grid; gap: 4px; color: var(--muted); font-size: 12px; }
-  select, input { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; min-width: 0; }
-  button { font: inherit; border: 0; border-radius: 6px; padding: 8px 14px; background: var(--accent); color: #fff; cursor: pointer; }
-  button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--border); }
-  button:disabled { opacity: .5; cursor: default; }
-  .muted { color: var(--muted); }
-  .bar { display: flex; height: 22px; border-radius: 6px; overflow: hidden; background: var(--border); margin: 8px 0; }
-  .bar > div { transition: width .4s; }
-  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; }
-  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
-  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
-  .stat { border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
-  .stat b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
-  .hist { display: flex; align-items: end; gap: 2px; height: 90px; margin-top: 12px; }
-  .hist div { flex: 1; background: var(--accent); border-radius: 2px 2px 0 0; min-height: 1px; }
-  .hist-axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
-  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
-  th { color: var(--muted); font-weight: 500; font-size: 12px; }
-  .scroll { overflow-x: auto; }
-  .ok { color: var(--ok); } .warn { color: var(--warn); } .err { color: var(--err); }
-  progress { width: 100%; height: 6px; }
-</style>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Booking Simulator</title>
+    <style>
+        :root {
+            --bg: #f6f7f9;
+            --card: #fff;
+            --text: #1b1f24;
+            --muted: #667085;
+            --border: #e3e6ea;
+            --accent: #2563eb;
+            --ok: #16a34a;
+            --warn: #d97706;
+            --err: #dc2626;
+            --held: #f59e0b;
+            --free: #22c55e;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #0f1216;
+                --card: #171b21;
+                --text: #e6e9ee;
+                --muted: #8b95a5;
+                --border: #2a3039;
+                --accent: #60a5fa;
+                --ok: #4ade80;
+                --warn: #fbbf24;
+                --err: #f87171;
+                --held: #fbbf24;
+                --free: #4ade80;
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        main {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 20px 16px 48px;
+            display: grid;
+            gap: 16px;
+        }
+
+        h1 {
+            font-size: 20px;
+            margin: 0;
+        }
+
+        h2 {
+            font-size: 15px;
+            margin: 0 0 12px;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+        }
+
+        .row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: end;
+        }
+
+        label {
+            display: grid;
+            gap: 4px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        select, input {
+            font: inherit;
+            color: var(--text);
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 6px 8px;
+            min-width: 0;
+        }
+
+        button {
+            font: inherit;
+            border: 0;
+            border-radius: 6px;
+            padding: 8px 14px;
+            background: var(--accent);
+            color: #fff;
+            cursor: pointer;
+        }
+
+        button.secondary {
+            background: transparent;
+            color: var(--accent);
+            border: 1px solid var(--border);
+        }
+
+        button:disabled {
+            opacity: .5;
+            cursor: default;
+        }
+
+        .muted {
+            color: var(--muted);
+        }
+
+        .bar {
+            display: flex;
+            height: 22px;
+            border-radius: 6px;
+            overflow: hidden;
+            background: var(--border);
+            margin: 8px 0;
+        }
+
+        .bar > div {
+            transition: width .4s;
+        }
+
+        .legend {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            font-size: 12px;
+        }
+
+        .dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 4px;
+            vertical-align: -1px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+        }
+
+        .stat {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        .stat b {
+            display: block;
+            font-size: 20px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .hist {
+            display: flex;
+            align-items: end;
+            gap: 2px;
+            height: 90px;
+            margin-top: 12px;
+        }
+
+        .hist div {
+            flex: 1;
+            background: var(--accent);
+            border-radius: 2px 2px 0 0;
+            min-height: 1px;
+        }
+
+        .hist-axis {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-variant-numeric: tabular-nums;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 6px 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            color: var(--muted);
+            font-weight: 500;
+            font-size: 12px;
+        }
+
+        .scroll {
+            overflow-x: auto;
+        }
+
+        .ok {
+            color: var(--ok);
+        }
+
+        .warn {
+            color: var(--warn);
+        }
+
+        .err {
+            color: var(--err);
+        }
+
+        progress {
+            width: 100%;
+            height: 6px;
+        }
+    </style>
 </head>
 <body>
 <main>
-  <header>
-    <h1>Booking Simulator</h1>
-    <div class="muted">Брони идут через api-gateway, как от настоящих клиентов. Каждый «покупатель» — свой <code>X-User-Id</code>.</div>
-  </header>
+    <header>
+        <h1>Booking Simulator</h1>
+        <div class="muted">Брони идут через api-gateway, как от настоящих клиентов. Каждый «покупатель» — свой <code>X-User-Id</code>.
+        </div>
+    </header>
 
-  <section class="card">
-    <h2>Событие</h2>
-    <div class="row">
-      <label style="flex:1; min-width:220px">Событие в продаже
-        <select id="event"></select>
-      </label>
-      <label>или id вручную <input id="eventId" type="number" min="1" style="width:110px"></label>
-    </div>
-    <div class="bar" id="bar"></div>
-    <div class="legend" id="legend"></div>
-  </section>
+    <section class="card">
+        <h2>Событие</h2>
+        <div class="row">
+            <label style="flex:1; min-width:220px">Событие в продаже
+                <select id="event"></select>
+            </label>
+            <label>или id вручную <input id="eventId" type="number" min="1" style="width:110px"></label>
+        </div>
+        <div class="bar" id="bar"></div>
+        <div class="legend" id="legend"></div>
+    </section>
 
-  <section class="card">
-    <h2>Симуляция</h2>
-    <div class="row">
-      <label>Покупателей <input id="count" type="number" value="200" min="1" max="1000" style="width:100px"></label>
-      <label>Сценарий
-        <select id="mode">
-          <option value="same">Все на одно место (гонка)</option>
-          <option value="distinct">Каждый на своё место</option>
-          <option value="retry">Каждый на своё место + повтор с тем же Idempotency-Key</option>
-        </select>
-      </label>
-      <label>Параллельно <input id="parallel" type="number" value="50" min="1" max="500" style="width:90px"></label>
-      <button id="run">Запустить</button>
-      <button id="cancelRun" class="secondary" disabled>Отменить брони прогона</button>
-    </div>
-    <p class="muted" style="margin:10px 0 0">
-      Браузер держит около 6 соединений на хост, поэтому «параллельно» больше 6 упирается в очередь браузера.
-      Для наглядности хватает, настоящая нагрузка будет в k6 (блок 11).
-    </p>
-    <progress id="progress" value="0" max="1" hidden></progress>
-  </section>
+    <section class="card">
+        <h2>Симуляция</h2>
+        <div class="row">
+            <label>Покупателей <input id="count" type="number" value="200" min="1" max="1000"
+                                      style="width:100px"></label>
+            <label>Сценарий
+                <select id="mode">
+                    <option value="same">Все на одно место (гонка)</option>
+                    <option value="distinct">Каждый на своё место</option>
+                    <option value="retry">Каждый на своё место + повтор с тем же Idempotency-Key</option>
+                </select>
+            </label>
+            <label>Параллельно <input id="parallel" type="number" value="50" min="1" max="500"
+                                      style="width:90px"></label>
+            <button id="run">Запустить</button>
+            <button id="cancelRun" class="secondary" disabled>Отменить брони прогона</button>
+        </div>
+        <p class="muted" style="margin:10px 0 0">
+            Браузер держит около 6 соединений на хост, поэтому «параллельно» больше 6 упирается в очередь браузера.
+            Для наглядности хватает, настоящая нагрузка будет в k6 (блок 11).
+        </p>
+        <progress id="progress" value="0" max="1" hidden></progress>
+    </section>
 
-  <section class="card">
-    <h2>Результат прогона</h2>
-    <div class="stats" id="stats"><div class="muted">Запусти симуляцию.</div></div>
-    <div class="hist" id="hist"></div>
-    <div class="hist-axis" id="histAxis"></div>
-    <div class="scroll" style="margin-top:12px"><table id="byTitle"></table></div>
-  </section>
+    <section class="card">
+        <h2>Результат прогона</h2>
+        <div class="stats" id="stats">
+            <div class="muted">Запусти симуляцию.</div>
+        </div>
+        <div class="hist" id="hist"></div>
+        <div class="hist-axis" id="histAxis"></div>
+        <div class="scroll" style="margin-top:12px">
+            <table id="byTitle"></table>
+        </div>
+    </section>
 
-  <section class="card">
-    <h2>Последние брони</h2>
-    <div class="scroll"><table id="bookings"></table></div>
-  </section>
+    <section class="card">
+        <h2>Последние брони</h2>
+        <div class="scroll">
+            <table id="bookings"></table>
+        </div>
+    </section>
 </main>
 
 <script>
-const $ = id => document.getElementById(id);
-const API = '/api/v1';
-const STATUS_COLORS = { AVAILABLE: 'var(--free)', HELD: 'var(--held)', BOOKED: 'var(--err)' };
-let lastRun = [];        // успешные брони последнего прогона: {id, user}
-const recent = [];       // для таблицы: последние 50 броней
+    const $ = id => document.getElementById(id);
+    const API = '/api/v1';
+    const STATUS_COLORS = {AVAILABLE: 'var(--free)', HELD: 'var(--held)', BOOKED: 'var(--err)'};
+    let lastRun = [];        // успешные брони последнего прогона: {id, user}
+    const recent = [];       // для таблицы: последние 50 броней
 
-function eventId() {
-  return Number($('eventId').value) || Number($('event').value);
-}
-
-async function loadEvents() {
-  // места в booking-service есть только у демо-событий, они все в Almaty; сгенерированные 100 000 — без мест
-  const res = await fetch(`${API}/events?city=Almaty&size=100`);
-  const page = await res.json();
-  $('event').innerHTML = page.items
-    .map(e => `<option value="${e.id}">#${e.id} ${escapeHtml(e.title)} · ${escapeHtml(e.city)}</option>`).join('');
-  // Flash Sale (id 2) на 20 000 мест — лучшая площадка для гонки
-  if (page.items.some(e => e.id === 2)) $('event').value = '2';
-  refreshAvailability();
-}
-
-async function refreshAvailability() {
-  const id = eventId();
-  if (!id) return;
-  const res = await fetch(`${API}/events/${id}/availability`);
-  if (!res.ok) {
-    $('bar').innerHTML = '';
-    $('legend').innerHTML = `<span class="err">У события ${id} нет мест в booking-service</span>`;
-    return;
-  }
-  const { seats } = await res.json();
-  const total = Object.values(seats).reduce((a, b) => a + b, 0) || 1;
-  $('bar').innerHTML = Object.entries(seats)
-    .map(([s, n]) => `<div style="width:${n / total * 100}%;background:${STATUS_COLORS[s]}" title="${s}: ${n}"></div>`).join('');
-  $('legend').innerHTML = Object.entries(seats)
-    .map(([s, n]) => `<span><span class="dot" style="background:${STATUS_COLORS[s]}"></span>${s} ${n.toLocaleString('ru')}</span>`).join('');
-}
-
-async function availableSeats(id, limit) {
-  const res = await fetch(`${API}/events/${id}/seats?status=AVAILABLE&limit=${Math.min(limit, 500)}`);
-  return (await res.json()).map(s => s.id);
-}
-
-function book(id, user, seatIds, key) {
-  const headers = { 'Content-Type': 'application/json', 'X-User-Id': user };
-  if (key) headers['Idempotency-Key'] = key;
-  return fetch(`${API}/bookings`, { method: 'POST', headers, body: JSON.stringify({ eventId: id, seatIds }) });
-}
-
-async function timed(fn) {
-  const start = performance.now();
-  const res = await fn();
-  const ms = performance.now() - start;
-  const body = await res.json().catch(() => ({}));
-  return { status: res.status, ms, body };
-}
-
-// пул воркеров: не больше `parallel` запросов в полёте
-async function runPool(tasks, parallel, onDone) {
-  let next = 0;
-  const results = new Array(tasks.length);
-  async function worker() {
-    while (next < tasks.length) {
-      const i = next++;
-      results[i] = await tasks[i]();
-      onDone();
+    function eventId() {
+        return Number($('eventId').value) || Number($('event').value);
     }
-  }
-  await Promise.all(Array.from({ length: Math.min(parallel, tasks.length) }, worker));
-  return results;
-}
 
-async function run() {
-  const id = eventId();
-  const count = Math.max(1, Math.min(1000, Number($('count').value) || 1));
-  const mode = $('mode').value;
-  const parallel = Math.max(1, Number($('parallel').value) || 1);
-  const runId = Date.now().toString(36);
-  $('run').disabled = true;
-
-  const seats = await availableSeats(id, mode === 'same' ? 1 : count);
-  if (seats.length === 0) { alert('Свободных мест нет'); $('run').disabled = false; return; }
-  const buyers = mode === 'same' ? count : Math.min(count, seats.length);
-  if (buyers < count) alert(`Свободных мест подряд нашлось ${seats.length}, покупателей будет ${buyers}`);
-
-  const tasks = [];
-  for (let i = 0; i < buyers; i++) {
-    const user = `sim-${runId}-${i}`;
-    const seat = mode === 'same' ? seats[0] : seats[i];
-    if (mode === 'retry') {
-      const key = `${runId}-${i}`;
-      // «ответ потерялся»: клиент сразу шлёт тот же запрос с тем же ключом
-      tasks.push(() => timed(() => book(id, user, [seat], key)).then(r => ({ ...r, user, attempt: 1 })));
-      tasks.push(() => timed(() => book(id, user, [seat], key)).then(r => ({ ...r, user, attempt: 2 })));
-    } else {
-      tasks.push(() => timed(() => book(id, user, [seat])).then(r => ({ ...r, user })));
+    async function loadEvents() {
+        // места в booking-service есть только у демо-событий, они все в Almaty; сгенерированные 100 000 — без мест
+        const res = await fetch(`${API}/events?city=Almaty&size=100`);
+        const page = await res.json();
+        $('event').innerHTML = page.items
+            .map(e => `<option value="${e.id}">#${e.id} ${escapeHtml(e.title)} · ${escapeHtml(e.city)}</option>`).join('');
+        // Flash Sale (id 2) на 20 000 мест — лучшая площадка для гонки
+        if (page.items.some(e => e.id === 2)) $('event').value = '2';
+        refreshAvailability();
     }
-  }
 
-  const progress = $('progress');
-  progress.hidden = false; progress.max = tasks.length; progress.value = 0;
-  const started = performance.now();
-  const results = await runPool(tasks, parallel, () => progress.value++);
-  const wall = performance.now() - started;
-  progress.hidden = true;
+    async function refreshAvailability() {
+        const id = eventId();
+        if (!id) return;
+        const res = await fetch(`${API}/events/${id}/availability`);
+        if (!res.ok) {
+            $('bar').innerHTML = '';
+            $('legend').innerHTML = `<span class="err">У события ${id} нет мест в booking-service</span>`;
+            return;
+        }
+        const {seats} = await res.json();
+        const total = Object.values(seats).reduce((a, b) => a + b, 0) || 1;
+        $('bar').innerHTML = Object.entries(seats)
+            .map(([s, n]) => `<div style="width:${n / total * 100}%;background:${STATUS_COLORS[s]}" title="${s}: ${n}"></div>`).join('');
+        $('legend').innerHTML = Object.entries(seats)
+            .map(([s, n]) => `<span><span class="dot" style="background:${STATUS_COLORS[s]}"></span>${s} ${n.toLocaleString('ru')}</span>`).join('');
+    }
 
-  const created = results.filter(r => r.status === 201);
-  const unique = new Map(created.map(r => [r.body.id, r]));
-  lastRun = [...unique.values()].map(r => ({ id: r.body.id, user: r.user }));
-  unique.forEach(r => recent.unshift(r.body && { ...r.body, user: r.user }));
-  recent.splice(50);
+    async function availableSeats(id, limit) {
+        const res = await fetch(`${API}/events/${id}/seats?status=AVAILABLE&limit=${Math.min(limit, 500)}`);
+        return (await res.json()).map(s => s.id);
+    }
 
-  render(results, wall, mode, unique.size);
-  renderBookings();
-  $('cancelRun').disabled = lastRun.length === 0;
-  $('run').disabled = false;
-  refreshAvailability();
-}
+    function book(id, user, seatIds, key) {
+        const headers = {'Content-Type': 'application/json', 'X-User-Id': user};
+        if (key) headers['Idempotency-Key'] = key;
+        return fetch(`${API}/bookings`, {method: 'POST', headers, body: JSON.stringify({eventId: id, seatIds})});
+    }
 
-function percentile(sorted, p) {
-  return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * p))];
-}
+    async function timed(fn) {
+        const start = performance.now();
+        const res = await fn();
+        const ms = performance.now() - start;
+        const body = await res.json().catch(() => ({}));
+        return {status: res.status, ms, body};
+    }
 
-function render(results, wall, mode, bookingsCreated) {
-  const ms = results.map(r => r.ms).sort((a, b) => a - b);
-  const by = s => results.filter(r => r.status === s).length;
-  const others = results.length - by(201) - by(409) - by(422) - by(503);
-  const stat = (label, value, cls = '') => `<div class="stat"><span class="muted">${label}</span><b class="${cls}">${value}</b></div>`;
-  $('stats').innerHTML = [
-    stat('Запросов', results.length),
-    stat('Создано броней', bookingsCreated, mode === 'same' && bookingsCreated > 1 ? 'err' : 'ok'),
-    stat('201', by(201), 'ok'),
-    stat('409 конфликт', by(409), 'warn'),
-    stat('503 / 422', `${by(503)} / ${by(422)}`, by(503) ? 'err' : ''),
-    stat('Другие', others, others ? 'err' : ''),
-    stat('p50, мс', percentile(ms, .5).toFixed(0)),
-    stat('p95, мс', percentile(ms, .95).toFixed(0)),
-    stat('p99, мс', percentile(ms, .99).toFixed(0)),
-    stat('Всего, с', (wall / 1000).toFixed(2)),
-    stat('Запросов/с', (results.length / wall * 1000).toFixed(0)),
-  ].join('');
+    // пул воркеров: не больше `parallel` запросов в полёте
+    async function runPool(tasks, parallel, onDone) {
+        let next = 0;
+        const results = new Array(tasks.length);
 
-  // гистограмма задержек: 30 корзин от min до max
-  const buckets = 30, min = ms[0], max = ms[ms.length - 1], width = (max - min) / buckets || 1;
-  const counts = new Array(buckets).fill(0);
-  ms.forEach(v => counts[Math.min(buckets - 1, Math.floor((v - min) / width))]++);
-  const top = Math.max(...counts);
-  $('hist').innerHTML = counts.map(c => `<div style="height:${c / top * 100}%" title="${c}"></div>`).join('');
-  $('histAxis').innerHTML = `<span>${min.toFixed(0)} мс</span><span>задержка ответа</span><span>${max.toFixed(0)} мс</span>`;
+        async function worker() {
+            while (next < tasks.length) {
+                const i = next++;
+                results[i] = await tasks[i]();
+                onDone();
+            }
+        }
 
-  const titles = {};
-  results.forEach(r => {
-    const key = `${r.status} ${r.status === 201 ? 'Created' : r.body.title || ''}`;
-    titles[key] = (titles[key] || 0) + 1;
-  });
-  $('byTitle').innerHTML = '<tr><th>Ответ</th><th>Сколько</th></tr>' + Object.entries(titles)
-    .sort((a, b) => b[1] - a[1]).map(([k, n]) => `<tr><td>${escapeHtml(k)}</td><td>${n}</td></tr>`).join('');
-}
+        await Promise.all(Array.from({length: Math.min(parallel, tasks.length)}, worker));
+        return results;
+    }
 
-function renderBookings() {
-  $('bookings').innerHTML = '<tr><th>id</th><th>Покупатель</th><th>Места</th><th>Цена</th><th>Тариф</th><th>Статус</th><th></th></tr>' +
-    recent.map(b => `<tr>
+    async function run() {
+        const id = eventId();
+        const count = Math.max(1, Math.min(1000, Number($('count').value) || 1));
+        const mode = $('mode').value;
+        const parallel = Math.max(1, Number($('parallel').value) || 1);
+        const runId = Date.now().toString(36);
+        $('run').disabled = true;
+
+        const seats = await availableSeats(id, mode === 'same' ? 1 : count);
+        if (seats.length === 0) {
+            alert('Свободных мест нет');
+            $('run').disabled = false;
+            return;
+        }
+        const buyers = mode === 'same' ? count : Math.min(count, seats.length);
+        if (buyers < count) alert(`Свободных мест подряд нашлось ${seats.length}, покупателей будет ${buyers}`);
+
+        const tasks = [];
+        for (let i = 0; i < buyers; i++) {
+            const user = `sim-${runId}-${i}`;
+            const seat = mode === 'same' ? seats[0] : seats[i];
+            if (mode === 'retry') {
+                const key = `${runId}-${i}`;
+                // «ответ потерялся»: клиент сразу шлёт тот же запрос с тем же ключом
+                tasks.push(() => timed(() => book(id, user, [seat], key)).then(r => ({...r, user, attempt: 1})));
+                tasks.push(() => timed(() => book(id, user, [seat], key)).then(r => ({...r, user, attempt: 2})));
+            } else {
+                tasks.push(() => timed(() => book(id, user, [seat])).then(r => ({...r, user})));
+            }
+        }
+
+        const progress = $('progress');
+        progress.hidden = false;
+        progress.max = tasks.length;
+        progress.value = 0;
+        const started = performance.now();
+        const results = await runPool(tasks, parallel, () => progress.value++);
+        const wall = performance.now() - started;
+        progress.hidden = true;
+
+        const created = results.filter(r => r.status === 201);
+        const unique = new Map(created.map(r => [r.body.id, r]));
+        lastRun = [...unique.values()].map(r => ({id: r.body.id, user: r.user}));
+        unique.forEach(r => recent.unshift(r.body && {...r.body, user: r.user}));
+        recent.splice(50);
+
+        render(results, wall, mode, unique.size);
+        renderBookings();
+        $('cancelRun').disabled = lastRun.length === 0;
+        $('run').disabled = false;
+        refreshAvailability();
+    }
+
+    function percentile(sorted, p) {
+        return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * p))];
+    }
+
+    function render(results, wall, mode, bookingsCreated) {
+        const ms = results.map(r => r.ms).sort((a, b) => a - b);
+        const by = s => results.filter(r => r.status === s).length;
+        const others = results.length - by(201) - by(409) - by(422) - by(503);
+        const stat = (label, value, cls = '') => `<div class="stat"><span class="muted">${label}</span><b class="${cls}">${value}</b></div>`;
+        $('stats').innerHTML = [
+            stat('Запросов', results.length),
+            stat('Создано броней', bookingsCreated, mode === 'same' && bookingsCreated > 1 ? 'err' : 'ok'),
+            stat('201', by(201), 'ok'),
+            stat('409 конфликт', by(409), 'warn'),
+            stat('503 / 422', `${by(503)} / ${by(422)}`, by(503) ? 'err' : ''),
+            stat('Другие', others, others ? 'err' : ''),
+            stat('p50, мс', percentile(ms, .5).toFixed(0)),
+            stat('p95, мс', percentile(ms, .95).toFixed(0)),
+            stat('p99, мс', percentile(ms, .99).toFixed(0)),
+            stat('Всего, с', (wall / 1000).toFixed(2)),
+            stat('Запросов/с', (results.length / wall * 1000).toFixed(0)),
+        ].join('');
+
+        // гистограмма задержек: 30 корзин от min до max
+        const buckets = 30, min = ms[0], max = ms[ms.length - 1], width = (max - min) / buckets || 1;
+        const counts = new Array(buckets).fill(0);
+        ms.forEach(v => counts[Math.min(buckets - 1, Math.floor((v - min) / width))]++);
+        const top = Math.max(...counts);
+        $('hist').innerHTML = counts.map(c => `<div style="height:${c / top * 100}%" title="${c}"></div>`).join('');
+        $('histAxis').innerHTML = `<span>${min.toFixed(0)} мс</span><span>задержка ответа</span><span>${max.toFixed(0)} мс</span>`;
+
+        const titles = {};
+        results.forEach(r => {
+            const key = `${r.status} ${r.status === 201 ? 'Created' : r.body.title || ''}`;
+            titles[key] = (titles[key] || 0) + 1;
+        });
+        $('byTitle').innerHTML = '<tr><th>Ответ</th><th>Сколько</th></tr>' + Object.entries(titles)
+            .sort((a, b) => b[1] - a[1]).map(([k, n]) => `<tr><td>${escapeHtml(k)}</td><td>${n}</td></tr>`).join('');
+    }
+
+    function renderBookings() {
+        $('bookings').innerHTML = '<tr><th>id</th><th>Покупатель</th><th>Места</th><th>Цена</th><th>Тариф</th><th>Статус</th><th></th></tr>' +
+            recent.map(b => `<tr>
       <td>${b.id}</td><td>${escapeHtml(b.user)}</td><td>${b.seats.map(s => s.seatId).join(', ')}</td>
       <td>${Number(b.totalPrice).toLocaleString('ru')}</td><td>${b.pricingType}</td><td>${b.status}</td>
       <td>${b.status === 'PENDING' ? `<button class="secondary" data-id="${b.id}" data-user="${escapeHtml(b.user)}">Отменить</button>` : ''}</td>
     </tr>`).join('');
-}
+    }
 
-async function cancel(id, user) {
-  const res = await fetch(`${API}/bookings/${id}/cancel`, { method: 'POST', headers: { 'X-User-Id': user } });
-  if (res.ok) {
-    const updated = await res.json();
-    const row = recent.find(b => b.id === id);
-    if (row) row.status = updated.status;
-  }
-}
+    async function cancel(id, user) {
+        const res = await fetch(`${API}/bookings/${id}/cancel`, {method: 'POST', headers: {'X-User-Id': user}});
+        if (res.ok) {
+            const updated = await res.json();
+            const row = recent.find(b => b.id === id);
+            if (row) row.status = updated.status;
+        }
+    }
 
-async function cancelRun() {
-  $('cancelRun').disabled = true;
-  await runPool(lastRun.map(b => () => cancel(b.id, b.user)), 6, () => {});
-  lastRun = [];
-  renderBookings();
-  refreshAvailability();
-}
+    async function cancelRun() {
+        $('cancelRun').disabled = true;
+        await runPool(lastRun.map(b => () => cancel(b.id, b.user)), 6, () => {
+        });
+        lastRun = [];
+        renderBookings();
+        refreshAvailability();
+    }
 
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
+    function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, c => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        }[c]));
+    }
 
-$('event').addEventListener('change', () => { $('eventId').value = ''; refreshAvailability(); });
-$('eventId').addEventListener('change', refreshAvailability);
-$('run').addEventListener('click', run);
-$('cancelRun').addEventListener('click', cancelRun);
-$('bookings').addEventListener('click', async e => {
-  const btn = e.target.closest('button[data-id]');
-  if (!btn) return;
-  btn.disabled = true;
-  await cancel(Number(btn.dataset.id), btn.dataset.user);
-  renderBookings();
-  refreshAvailability();
-});
-setInterval(refreshAvailability, 1000);
-loadEvents();
+    $('event').addEventListener('change', () => {
+        $('eventId').value = '';
+        refreshAvailability();
+    });
+    $('eventId').addEventListener('change', refreshAvailability);
+    $('run').addEventListener('click', run);
+    $('cancelRun').addEventListener('click', cancelRun);
+    $('bookings').addEventListener('click', async e => {
+        const btn = e.target.closest('button[data-id]');
+        if (!btn) return;
+        btn.disabled = true;
+        await cancel(Number(btn.dataset.id), btn.dataset.user);
+        renderBookings();
+        refreshAvailability();
+    });
+    setInterval(refreshAvailability, 1000);
+    loadEvents();
 </script>
 </body>
 </html>
