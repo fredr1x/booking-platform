@@ -26,7 +26,7 @@ class CatalogClientTest extends AbstractIntegrationTest {
     @Test
     void concurrentLookupsOfOneEventMakeOneRequest() throws Exception {
         int before = CATALOG_REQUESTS.get();
-        CountDownLatch start = new CountDownLatch(1);
+        var start = new CountDownLatch(1);
 
         List<CatalogEvent> events;
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {

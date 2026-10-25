@@ -27,7 +27,7 @@ public class EventService {
     public EventPage findOnSale(String city, String after, int size) {
         EventCursor cursor = after == null ? new EventCursor(Instant.now(), 0) : EventCursor.decode(after);
         // на одну строку больше: так без отдельного count(*) понятно, есть ли следующая страница
-        Limit limit = Limit.of(size + 1);
+        var limit = Limit.of(size + 1);
         List<Event> events = city == null
                 ? eventRepository.findOnSaleAfter(cursor.startsAt(), cursor.id(), limit)
                 : eventRepository.findOnSaleInCityAfter(city, cursor.startsAt(), cursor.id(), limit);

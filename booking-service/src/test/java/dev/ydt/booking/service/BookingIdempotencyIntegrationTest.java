@@ -33,8 +33,8 @@ class BookingIdempotencyIntegrationTest extends AbstractIntegrationTest {
     void concurrentDuplicatesCreateOneBooking() throws Exception {
         Long seatId = jdbc.queryForObject(
                 "SELECT id FROM seats WHERE event_id = 1 AND status = 'AVAILABLE' ORDER BY id LIMIT 1", Long.class);
-        CreateBookingRequest request = new CreateBookingRequest(1L, List.of(seatId));
-        CountDownLatch start = new CountDownLatch(1);
+        var request = new CreateBookingRequest(1L, List.of(seatId));
+        var start = new CountDownLatch(1);
 
         List<Long> ids;
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {

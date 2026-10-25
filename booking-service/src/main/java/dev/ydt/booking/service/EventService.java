@@ -13,7 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.EnumMap;
 import java.util.List;
-import java.util.Map;
 
 /** Инвентарь мест события. Само событие (название, дата, площадка) в catalog-service. */
 @Service
@@ -30,7 +29,7 @@ public class EventService {
         if (rows.isEmpty()) {
             throw new EventNotFoundException(eventId);
         }
-        Map<SeatStatus, Long> counts = new EnumMap<>(SeatStatus.class);
+        var counts = new EnumMap<SeatStatus, Long>(SeatStatus.class);
         for (SeatStatus status : SeatStatus.values()) {
             counts.put(status, 0L);
         }

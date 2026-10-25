@@ -20,8 +20,8 @@ class EventApiIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void pagesFollowEachOtherWithoutGapsOrDuplicates() throws Exception {
-        List<Integer> ids = new ArrayList<>();
-        List<Instant> starts = new ArrayList<>();
+        var ids = new ArrayList<Integer>();
+        var starts = new ArrayList<Instant>();
         String cursor = null;
         for (int page = 0; page < 5; page++) {
             var request = get("/api/v1/events").param("city", "City 7").param("size", "20");

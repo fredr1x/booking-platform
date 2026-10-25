@@ -25,7 +25,7 @@ public final class TestEntities {
     }
 
     public static Seat seat(Long id, CatalogEvent event, String price, SeatStatus status) {
-        Seat seat = BeanUtils.instantiateClass(Seat.class);
+        var seat = BeanUtils.instantiateClass(Seat.class);
         ReflectionTestUtils.setField(seat, "id", id);
         ReflectionTestUtils.setField(seat, "eventId", event.id());
         ReflectionTestUtils.setField(seat, "section", "A");

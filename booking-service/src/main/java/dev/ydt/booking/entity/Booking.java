@@ -103,7 +103,7 @@ public class Booking {
      */
     public static Booking create(Long eventId, String userId, List<Seat> seats, PricingType pricingType,
                                  Map<Long, BigDecimal> seatPrices, Instant now, Duration holdTtl) {
-        Booking booking = new Booking();
+        var booking = new Booking();
         booking.eventId = eventId;
         booking.userId = userId;
         booking.pricingType = pricingType;

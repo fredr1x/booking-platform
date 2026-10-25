@@ -39,7 +39,7 @@ public class CatalogClient {
     public CatalogClient(@Value("${catalog.url}") String url,
                          @Value("${catalog.timeout:2s}") Duration timeout,
                          @Value("${catalog.cache-ttl:5s}") Duration cacheTtl) {
-        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(
+        var requestFactory = new JdkClientHttpRequestFactory(
                 HttpClient.newBuilder().connectTimeout(timeout).build());
         requestFactory.setReadTimeout(timeout);
         this.restClient = RestClient.builder().baseUrl(url).requestFactory(requestFactory).build();
@@ -47,8 +47,8 @@ public class CatalogClient {
     }
 
     public CatalogEvent getEvent(Long eventId) {
-        Instant now = Instant.now();
-        CompletableFuture<CatalogEvent> mine = new CompletableFuture<>();
+        var now = Instant.now();
+        var mine = new CompletableFuture<CatalogEvent>();
         // внутри compute только замена записи, без HTTP: блокировка ячейки карты держится микросекунды
         Entry entry = cache.compute(eventId, (id, old) ->
                 old != null && old.expiresAt().isAfter(now) ? old : new Entry(mine, now.plus(cacheTtl)));
