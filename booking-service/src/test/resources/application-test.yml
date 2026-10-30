@@ -13,5 +13,8 @@ spring:
         generate_statistics: true
 
 booking:
+  # релей outbox тесты вызывают сами, чтобы видеть сообщения до и после отправки
   scheduling:
     enabled: false
+  kafka:
+    retry-delay: 100ms

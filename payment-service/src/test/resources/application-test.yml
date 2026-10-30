@@ -1,0 +1,7 @@
+# Профиль интеграционных тестов. Адреса Postgres и Kafka подставляет Testcontainers (@ServiceConnection).
+payment:
+  delay: 50ms
+  # без случайных отказов: отказ проверяет PaymentServiceTest
+  failure-rate: 0
+  kafka:
+    retry-delay: 100ms

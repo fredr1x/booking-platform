@@ -19,9 +19,12 @@
     <description>High-load ticket booking platform</description>
 
     <modules>
+        <module>booking-contracts</module>
         <module>booking-service</module>
         <module>catalog-service</module>
         <module>api-gateway</module>
+        <module>payment-service</module>
+        <module>notification-service</module>
     </modules>
 
     <properties>
@@ -35,6 +38,11 @@
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>dev.ydt.booking</groupId>
+                <artifactId>booking-contracts</artifactId>
+                <version>${project.version}</version>
+            </dependency>
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>

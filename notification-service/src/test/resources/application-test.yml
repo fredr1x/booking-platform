@@ -1,0 +1,4 @@
+# Профиль интеграционных тестов. Адреса MongoDB и Kafka подставляет Testcontainers (@ServiceConnection).
+notification:
+  kafka:
+    retry-delay: 100ms

@@ -43,6 +43,11 @@ public class BookingController {
         return bookingService.get(id, userId);
     }
 
+    @PostMapping("/{id}/pay")
+    public BookingResponse pay(@CurrentUser String userId, @PathVariable Long id) {
+        return bookingService.pay(id, userId);
+    }
+
     @PostMapping("/{id}/cancel")
     public BookingResponse cancel(@CurrentUser String userId, @PathVariable Long id) {
         return bookingService.cancel(id, userId);

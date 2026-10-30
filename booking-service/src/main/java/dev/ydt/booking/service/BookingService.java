@@ -1,6 +1,14 @@
 package dev.ydt.booking.service;
 
 import dev.ydt.booking.client.CatalogClient;
+import dev.ydt.booking.contracts.BookingEvent.BookingCancelled;
+import dev.ydt.booking.contracts.BookingEvent.BookingConfirmed;
+import dev.ydt.booking.contracts.BookingEvent.BookingCreated;
+import dev.ydt.booking.contracts.BookingEvent.BookingExpired;
+import dev.ydt.booking.contracts.BookingEvent.PaymentRequested;
+import dev.ydt.booking.contracts.PaymentEvent;
+import dev.ydt.booking.contracts.PaymentEvent.PaymentFailed;
+import dev.ydt.booking.contracts.PaymentEvent.PaymentSucceeded;
 import dev.ydt.booking.config.BookingProperties;
 import dev.ydt.booking.dto.booking.BookingResponse;
 import dev.ydt.booking.dto.booking.CreateBookingRequest;
@@ -14,16 +22,19 @@ import dev.ydt.booking.entity.enums.EventStatus;
 import dev.ydt.booking.exception.BookingNotFoundException;
 import dev.ydt.booking.exception.EventNotOnSaleException;
 import dev.ydt.booking.exception.IdempotencyKeyReusedException;
+import dev.ydt.booking.exception.IllegalBookingTransitionException;
 import dev.ydt.booking.exception.InvalidSeatSelectionException;
 import dev.ydt.booking.mapper.BookingMapper;
 import dev.ydt.booking.repository.BookingRepository;
 import dev.ydt.booking.repository.IdempotencyKeyRepository;
+import dev.ydt.booking.repository.ProcessedMessageRepository;
 import dev.ydt.booking.repository.SeatRepository;
 import dev.ydt.booking.service.pricing.PriceQuote;
 import dev.ydt.booking.service.pricing.PricingService;
 import dev.ydt.booking.service.locking.SeatHoldStrategy;
 import dev.ydt.booking.service.locking.SeatLockingMode;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -39,7 +50,9 @@ import java.time.Instant;
 import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.UUID;
 
+@Slf4j
 @Service
 @Transactional
 @RequiredArgsConstructor
@@ -48,6 +61,8 @@ public class BookingService {
     private static final int EXPIRATION_BATCH_SIZE = 500;
     // как у Stripe: сутки покрывают любые разумные ретраи клиента
     private static final Duration IDEMPOTENCY_KEY_TTL = Duration.ofHours(24);
+    // дольше Kafka по умолчанию хранит сообщения 7 дней: старше этого повторная доставка уже не придёт
+    private static final Duration PROCESSED_MESSAGE_TTL = Duration.ofDays(8);
 
     private final BookingRepository bookingRepository;
     private final SeatRepository seatRepository;
@@ -59,6 +74,8 @@ public class BookingService {
     private final List<SeatHoldStrategy> seatHoldStrategies;
     private final CatalogClient catalogClient;
     private final TransactionTemplate transactionTemplate;
+    private final OutboxService outboxService;
+    private final ProcessedMessageRepository processedMessageRepository;
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public BookingResponse create(String userId, CreateBookingRequest request) {
@@ -114,8 +131,61 @@ public class BookingService {
 
     public BookingResponse cancel(Long id, String userId) {
         Booking booking = getOwned(id, userId);
-        booking.cancel(CancelReason.USER_REQUEST, clock.instant());
+        Instant now = clock.instant();
+        booking.cancel(CancelReason.USER_REQUEST, now);
+        outboxService.publish(new BookingCancelled(UUID.randomUUID(), booking.getId(), userId,
+                CancelReason.USER_REQUEST.name(), now));
         return bookingMapper.toResponse(booking);
+    }
+
+    /**
+     * Запускает оплату: бронь ждёт результат, payment-service получает запрос через outbox.
+     * Ответ сразу, без ожидания платёжки: результат придёт событием, клиент увидит его по GET.
+     */
+    public BookingResponse pay(Long id, String userId) {
+        Booking booking = getOwned(id, userId);
+        Instant now = clock.instant();
+        booking.startPayment(UUID.randomUUID().toString(), now);
+        outboxService.publish(new PaymentRequested(UUID.randomUUID(), booking.getId(), userId,
+                booking.getPaymentId(), booking.getTotalPrice(), now));
+        return bookingMapper.toResponse(booking);
+    }
+
+    /**
+     * Результат оплаты. Отметка «сообщение обработано» и смена статуса в одной транзакции:
+     * повторная доставка того же сообщения увидит отметку и ничего не сделает.
+     */
+    public void applyPayment(PaymentEvent event) {
+        Instant now = clock.instant();
+        if (processedMessageRepository.markProcessed(event.messageId(), now) == 0) {
+            log.info("Payment event {} already processed, skipping", event.messageId());
+            return;
+        }
+        Booking booking = bookingRepository.findById(event.bookingId())
+                .orElseThrow(() -> new BookingNotFoundException(event.bookingId()));
+        if (!event.paymentId().equals(booking.getPaymentId())) {
+            log.warn("Payment {} does not match booking {} (payment {}), ignoring",
+                    event.paymentId(), booking.getId(), booking.getPaymentId());
+            return;
+        }
+        try {
+            switch (event) {
+                case PaymentSucceeded succeeded -> {
+                    booking.confirm(now);
+                    outboxService.publish(new BookingConfirmed(UUID.randomUUID(), booking.getId(),
+                            booking.getUserId(), succeeded.paymentId(), now));
+                }
+                case PaymentFailed failed -> {
+                    booking.cancel(CancelReason.PAYMENT_FAILED, now);
+                    outboxService.publish(new BookingCancelled(UUID.randomUUID(), booking.getId(),
+                            booking.getUserId(), CancelReason.PAYMENT_FAILED.name(), now));
+                }
+            }
+        } catch (IllegalBookingTransitionException e) {
+            // shortcut: пользователь отменил бронь, пока шла оплата; деньги списаны, нужен возврат — saga в блоке 9
+            log.warn("Payment result for booking {} arrived in status {}: {}",
+                    booking.getId(), booking.getStatus(), e.getMessage());
+        }
     }
 
     /** Переводит просроченные PENDING-брони в EXPIRED и освобождает места. Возвращает число обработанных. */
@@ -123,12 +193,19 @@ public class BookingService {
         Instant now = clock.instant();
         List<Booking> overdue = bookingRepository.findByStatusAndExpiresAtBefore(
                 BookingStatus.PENDING, now, Limit.of(EXPIRATION_BATCH_SIZE));
-        overdue.forEach(booking -> booking.expire(now));
+        overdue.forEach(booking -> {
+            booking.expire(now);
+            outboxService.publish(new BookingExpired(UUID.randomUUID(), booking.getId(), booking.getUserId(), now));
+        });
         return overdue.size();
     }
 
     public int purgeIdempotencyKeys() {
         return idempotencyKeyRepository.deleteCreatedBefore(clock.instant().minus(IDEMPOTENCY_KEY_TTL));
+    }
+
+    public int purgeProcessedMessages() {
+        return processedMessageRepository.deleteProcessedBefore(clock.instant().minus(PROCESSED_MESSAGE_TTL));
     }
 
     private CatalogEvent onSaleEvent(Long eventId) {
@@ -148,9 +225,11 @@ public class BookingService {
         strategy(mode).hold(seats, now);
 
         PriceQuote quote = pricingService.quote(event, seats, now);
-        var booking = Booking.create(event.id(), userId, seats, quote.type(), quote.seatPrices(), now,
-                properties.holdTtl());
-        return bookingMapper.toResponse(bookingRepository.save(booking));
+        var booking = bookingRepository.save(Booking.create(event.id(), userId, seats, quote.type(),
+                quote.seatPrices(), now, properties.holdTtl()));
+        outboxService.publish(new BookingCreated(UUID.randomUUID(), booking.getId(), userId, booking.getEventId(),
+                booking.getTotalPrice(), booking.getExpiresAt(), now));
+        return bookingMapper.toResponse(booking);
     }
 
     private BookingResponse replay(IdempotencyKey saved, String requestHash, String userId) {

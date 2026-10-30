@@ -26,6 +26,20 @@ spring:
         default_batch_fetch_size: 50
   flyway:
     locations: classpath:db/migration
+  # Адрес брокера вне профиля local задаёт SPRING_KAFKA_BOOTSTRAP_SERVERS
+  kafka:
+    producer:
+      # запись подтверждают все синхронные реплики; идемпотентный producer не пишет дубли при своих ретраях
+      acks: all
+      properties:
+        enable.idempotence: true
+        # без брокера send() ждёт метаданные до max.block.ms (60 с по умолчанию), а релей держит транзакцию
+        max.block.ms: 5000
+        delivery.timeout.ms: 10000
+        request.timeout.ms: 5000
+    consumer:
+      # новая группа читает топик с начала, а не только новые сообщения
+      auto-offset-reset: earliest
 
 # Вне профиля local адрес каталога задаёт переменная CATALOG_URL
 catalog:
@@ -37,6 +51,11 @@ booking:
   hold-ttl: 10m
   seat-locking: atomic
   expiration-sweep-interval: 30s
+  outbox:
+    relay-interval: 200ms
+  kafka:
+    # первая пауза перед повтором сообщения, дальше ×2
+    retry-delay: 1s
   pricing:
     early-bird-window: 72h
     early-bird-discount: 0.15
@@ -71,6 +90,8 @@ spring:
     password: booking
   flyway:
     locations: classpath:db/migration,classpath:db/seed
+  kafka:
+    bootstrap-servers: localhost:9092
 
 catalog:
   url: http://localhost:8082
