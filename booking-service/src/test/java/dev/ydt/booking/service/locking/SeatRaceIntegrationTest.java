@@ -109,6 +109,7 @@ class SeatRaceIntegrationTest extends AbstractIntegrationTest {
                         "--spring.datasource.password=" + POSTGRES.getPassword(),
                         "--spring.datasource.hikari.connection-timeout=60000",
                         "--booking.scheduling.enabled=false",
+                        "--spring.kafka.bootstrap-servers=" + KAFKA.getBootstrapServers(),
                         "--catalog.url=" + catalogUrl())) {
             BookingService other = secondInstance.getBean(BookingService.class);
 

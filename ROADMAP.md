@@ -164,7 +164,9 @@ booking-project/
 
 ---
 
-## Блок 6 · 30.10 · Kafka, outbox, DLQ
+## Блок 6 · 30.10 · Kafka, outbox, DLQ ✅
+
+**Сделано:** Kafka 4.1 в KRaft и MongoDB в compose, Kafka UI в профиле `tools`. Модуль `booking-contracts`: sealed `BookingEvent` и `PaymentEvent` с records, тип в поле `type`. Transactional outbox в booking-service (`V6`): событие пишется в одной транзакции с бронью, релей забирает пачки через `FOR UPDATE SKIP LOCKED` и удаляет их после `acks=all`. Новый эндпоинт `POST /bookings/{id}/pay`. `payment-service` (порт 8083, база `payment`): задержка и доля отказов в настройках, идемпотентность по уникальному `payment_id`, повтор отдаёт тот же результат с тем же `messageId`. `notification-service` (порт 8084, MongoDB): `_id` документа = `messageId`, дубль не вставится. Идемпотентный consumer в booking через `processed_messages`. `@RetryableTopic` во всех consumer'ах со своими суффиксами retry/DLT, битый JSON сразу в DLT. Вживую: 20 оплат → 19 CONFIRMED и 1 CANCELLED за 3.3 с; Kafka остановлена → брони создаются (201), события ждут в outbox и уходят через 8 с после подъёма брокера. Решения в [ADR 0003](docs/adr/0003-kafka-outbox.md). 115 тестов.
 
 **Задачи**
 1. Kafka в compose (KRaft, 1 брокер, heap 512 МБ). Kafka UI в отдельном профиле `tools`.

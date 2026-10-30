@@ -28,5 +28,9 @@ public class BookingExpirationScheduler {
         if (purged > 0) {
             log.info("Purged {} old idempotency keys", purged);
         }
+        int processed = bookingService.purgeProcessedMessages();
+        if (processed > 0) {
+            log.info("Purged {} old processed message ids", processed);
+        }
     }
 }
