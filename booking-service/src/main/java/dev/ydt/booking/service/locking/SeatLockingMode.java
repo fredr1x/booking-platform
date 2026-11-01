@@ -13,5 +13,10 @@ public enum SeatLockingMode {
     /** SELECT ... FOR UPDATE SKIP LOCKED: конкуренты не ждут, а сразу считают место занятым. */
     SKIP_LOCKED,
     /** UPDATE ... WHERE status = 'AVAILABLE': проверка и запись одним оператором. */
-    ATOMIC
+    ATOMIC,
+    /**
+     * Сначала claim места в Redis (SET NX), потом тот же атомарный UPDATE. Проигравшие отсеиваются в Redis
+     * и не занимают соединение с БД. Режим по умолчанию.
+     */
+    REDIS
 }

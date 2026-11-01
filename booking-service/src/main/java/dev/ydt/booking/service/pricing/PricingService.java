@@ -2,8 +2,6 @@ package dev.ydt.booking.service.pricing;
 
 import dev.ydt.booking.dto.event.CatalogEvent;
 import dev.ydt.booking.entity.Seat;
-import dev.ydt.booking.entity.enums.SeatStatus;
-import dev.ydt.booking.repository.SeatRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -18,7 +16,7 @@ public class PricingService {
 
     // Spring внедряет список, отсортированный по @Order
     private final List<PricingStrategy> strategies;
-    private final SeatRepository seatRepository;
+    private final OccupancyService occupancyService;
 
     public PriceQuote quote(CatalogEvent event, List<Seat> seats, Instant now) {
         PricingContext context = context(event, now);
@@ -35,14 +33,7 @@ public class PricingService {
     }
 
     private PricingContext context(CatalogEvent event, Instant now) {
-        long total = 0;
-        long available = 0;
-        for (SeatRepository.StatusCount count : seatRepository.countByStatus(event.id())) {
-            total += count.getCount();
-            if (count.getStatus() == SeatStatus.AVAILABLE) {
-                available = count.getCount();
-            }
-        }
-        return new PricingContext(now, event.salesOpenAt(), total, total - available);
+        Occupancy occupancy = occupancyService.occupancy(event.id());
+        return new PricingContext(now, event.salesOpenAt(), occupancy.totalSeats(), occupancy.takenSeats());
     }
 }

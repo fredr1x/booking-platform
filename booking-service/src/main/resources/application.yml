@@ -49,8 +49,10 @@ catalog:
 
 booking:
   hold-ttl: 10m
-  seat-locking: atomic
-  expiration-sweep-interval: 30s
+  seat-locking: redis
+  # брони истекают по очереди в Redis раз в секунду; обход таблицы только запасной, на случай потери данных в Redis
+  hold-expiration-poll-interval: 1s
+  expiration-sweep-interval: 5m
   outbox:
     relay-interval: 200ms
   kafka:
@@ -92,6 +94,10 @@ spring:
     locations: classpath:db/migration,classpath:db/seed
   kafka:
     bootstrap-servers: localhost:9092
+  data:
+    redis:
+      host: localhost
+      port: 6379
 
 catalog:
   url: http://localhost:8082

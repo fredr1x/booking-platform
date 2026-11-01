@@ -8,6 +8,7 @@ import dev.ydt.catalog.exception.EventNotFoundException;
 import dev.ydt.catalog.mapper.EventMapper;
 import dev.ydt.catalog.repository.EventRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,8 @@ import java.util.List;
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class EventService {
+
+    public static final String EVENT_CACHE = "events";
 
     private final EventRepository eventRepository;
     private final EventMapper eventMapper;
@@ -38,6 +41,13 @@ public class EventService {
         return new EventPage(eventMapper.toResponses(page), nextCursor);
     }
 
+    /**
+     * Cache-aside: сначала Redis, при промахе БД и запись в Redis. {@code sync = true}: на промахе в БД идёт
+     * один поток инстанса, остальные ждут его (защита от cache stampede). Отсутствующее событие не кэшируется:
+     * исключение пролетает мимо кэша.
+     */
+    // shortcut: событие не меняется после публикации, поэтому кэш живёт до TTL; появится редактирование — @CacheEvict
+    @Cacheable(cacheNames = EVENT_CACHE, key = "#id", sync = true)
     public EventResponse findById(Long id) {
         return eventMapper.toResponse(eventRepository.findWithDetailsById(id)
                 .orElseThrow(() -> new EventNotFoundException(id)));
