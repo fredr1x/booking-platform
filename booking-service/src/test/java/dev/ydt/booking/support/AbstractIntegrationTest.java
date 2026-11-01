@@ -10,6 +10,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
@@ -22,7 +23,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Один контейнер Postgres, один Kafka и один Spring-контекст на все интеграционные тесты.
+ * Контейнеры Postgres, Kafka, Redis и один Spring-контекст на все интеграционные тесты.
  * Контейнер стартует в static-блоке и живёт до конца JVM (singleton container pattern).
  * <p>
  * Вместо catalog-service поднимается HTTP-заглушка из JDK с теми же демо-событиями, что в каталоге:
@@ -43,6 +44,9 @@ public abstract class AbstractIntegrationTest {
     @ServiceConnection
     protected static final KafkaContainer KAFKA = new KafkaContainer("apache/kafka:4.1.1");
 
+    @ServiceConnection
+    protected static final GenericContainer<?> REDIS = new GenericContainer<>("redis:7.4-alpine").withExposedPorts(6379);
+
     /** Сколько HTTP-запросов дошло до заглушки каталога. */
     protected static final AtomicInteger CATALOG_REQUESTS = new AtomicInteger();
 
@@ -51,6 +55,7 @@ public abstract class AbstractIntegrationTest {
     static {
         POSTGRES.start();
         KAFKA.start();
+        REDIS.start();
     }
 
     @Autowired

@@ -1,9 +1,13 @@
 package dev.ydt.catalog.controller;
 
 import com.jayway.jsonpath.JsonPath;
+import dev.ydt.catalog.service.EventService;
 import dev.ydt.catalog.support.AbstractIntegrationTest;
 import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.CacheManager;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -17,6 +21,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class EventApiIntegrationTest extends AbstractIntegrationTest {
+
+    @Autowired
+    CacheManager cacheManager;
+    @Autowired
+    StringRedisTemplate redis;
 
     @Test
     void pagesFollowEachOtherWithoutGapsOrDuplicates() throws Exception {
@@ -90,11 +99,17 @@ class EventApiIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void eventCardTakesOneQuery() throws Exception {
+    void eventCardTakesOneQueryThenComesFromCache() throws Exception {
+        cacheManager.getCache(EventService.EVENT_CACHE).evict(1L);
         Statistics statistics = resetStatistics();
 
         mvc.perform(get("/api/v1/events/1")).andExpect(status().isOk());
+        assertThat(statistics.getPrepareStatementCount()).as("промах: один запрос в БД").isEqualTo(1);
 
-        assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
+        mvc.perform(get("/api/v1/events/1")).andExpect(status().isOk()).andExpect(jsonPath("$.title").value("Jazz Night"));
+        assertThat(statistics.getPrepareStatementCount()).as("попадание: в БД не ходили").isEqualTo(1);
+
+        // 10 минут плюс разброс до минуты
+        assertThat(redis.getExpire("events::1")).isBetween(595L, 661L);
     }
 }

@@ -26,6 +26,7 @@ import dev.ydt.booking.exception.IllegalBookingTransitionException;
 import dev.ydt.booking.exception.InvalidSeatSelectionException;
 import dev.ydt.booking.mapper.BookingMapper;
 import dev.ydt.booking.repository.BookingRepository;
+import dev.ydt.booking.repository.HoldExpirationRepository;
 import dev.ydt.booking.repository.IdempotencyKeyRepository;
 import dev.ydt.booking.repository.ProcessedMessageRepository;
 import dev.ydt.booking.repository.SeatRepository;
@@ -51,6 +52,7 @@ import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 @Slf4j
 @Service
@@ -76,6 +78,8 @@ public class BookingService {
     private final TransactionTemplate transactionTemplate;
     private final OutboxService outboxService;
     private final ProcessedMessageRepository processedMessageRepository;
+    private final SeatClaimService seatClaimService;
+    private final HoldExpirationRepository holdExpirationRepository;
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public BookingResponse create(String userId, CreateBookingRequest request) {
@@ -102,14 +106,16 @@ public class BookingService {
         }
 
         CatalogEvent event = onSaleEvent(request.eventId());
-        return transactionTemplate.execute(status -> {
-            if (idempotencyKeyRepository.insertIfAbsent(userId, idempotencyKey, requestHash, clock.instant()) == 0) {
-                return replay(idempotencyKeyRepository.findById(keyId).orElseThrow(), requestHash, userId);
-            }
-            BookingResponse booking = hold(userId, request, properties.seatLocking(), event);
-            idempotencyKeyRepository.attachBooking(keyId, booking.id());
-            return booking;
-        });
+        // владелец claim'а — ключ идемпотентности: параллельный дубль пройдёт Redis и дождётся ответа первого в БД
+        return withSeatClaim(properties.seatLocking(), request, userId + ":" + idempotencyKey,
+                () -> transactionTemplate.execute(status -> {
+                    if (idempotencyKeyRepository.insertIfAbsent(userId, idempotencyKey, requestHash, clock.instant()) == 0) {
+                        return replay(idempotencyKeyRepository.findById(keyId).orElseThrow(), requestHash, userId);
+                    }
+                    BookingResponse booking = hold(userId, request, properties.seatLocking(), event);
+                    idempotencyKeyRepository.attachBooking(keyId, booking.id());
+                    return booking;
+                }));
     }
 
     /**
@@ -121,7 +127,8 @@ public class BookingService {
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public BookingResponse create(String userId, CreateBookingRequest request, SeatLockingMode mode) {
         CatalogEvent event = onSaleEvent(request.eventId());
-        return transactionTemplate.execute(status -> hold(userId, request, mode, event));
+        return withSeatClaim(mode, request, UUID.randomUUID().toString(),
+                () -> transactionTemplate.execute(status -> hold(userId, request, mode, event)));
     }
 
     @Transactional(readOnly = true)
@@ -133,6 +140,7 @@ public class BookingService {
         Booking booking = getOwned(id, userId);
         Instant now = clock.instant();
         booking.cancel(CancelReason.USER_REQUEST, now);
+        releaseSeatClaims(booking);
         outboxService.publish(new BookingCancelled(UUID.randomUUID(), booking.getId(), userId,
                 CancelReason.USER_REQUEST.name(), now));
         return bookingMapper.toResponse(booking);
@@ -177,6 +185,7 @@ public class BookingService {
                 }
                 case PaymentFailed failed -> {
                     booking.cancel(CancelReason.PAYMENT_FAILED, now);
+                    releaseSeatClaims(booking);
                     outboxService.publish(new BookingCancelled(UUID.randomUUID(), booking.getId(),
                             booking.getUserId(), CancelReason.PAYMENT_FAILED.name(), now));
                 }
@@ -188,15 +197,32 @@ public class BookingService {
         }
     }
 
-    /** Переводит просроченные PENDING-брони в EXPIRED и освобождает места. Возвращает число обработанных. */
+    /**
+     * Истекает брони, срок которых наступил, по очереди в Redis. Бронь, которую уже оплатили или отменили,
+     * просто пропускается: из очереди её при смене статуса не убираем. Возвращает число истёкших.
+     */
+    public int expireDueHolds() {
+        Instant now = clock.instant();
+        List<Long> due = holdExpirationRepository.takeDue(now, EXPIRATION_BATCH_SIZE);
+        if (due.isEmpty()) {
+            return 0;
+        }
+        List<Booking> overdue = bookingRepository.findAllById(due).stream()
+                .filter(booking -> booking.getStatus() == BookingStatus.PENDING && !booking.getExpiresAt().isAfter(now))
+                .toList();
+        overdue.forEach(booking -> expire(booking, now));
+        return overdue.size();
+    }
+
+    /**
+     * Запасной обход таблицы: ловит брони, которых нет в очереди Redis (Redis был недоступен или потерял данные).
+     * Возвращает число обработанных.
+     */
     public int expireOverdue() {
         Instant now = clock.instant();
         List<Booking> overdue = bookingRepository.findByStatusAndExpiresAtBefore(
                 BookingStatus.PENDING, now, Limit.of(EXPIRATION_BATCH_SIZE));
-        overdue.forEach(booking -> {
-            booking.expire(now);
-            outboxService.publish(new BookingExpired(UUID.randomUUID(), booking.getId(), booking.getUserId(), now));
-        });
+        overdue.forEach(booking -> expire(booking, now));
         return overdue.size();
     }
 
@@ -206,6 +232,34 @@ public class BookingService {
 
     public int purgeProcessedMessages() {
         return processedMessageRepository.deleteProcessedBefore(clock.instant().minus(PROCESSED_MESSAGE_TTL));
+    }
+
+    private void expire(Booking booking, Instant now) {
+        booking.expire(now);
+        releaseSeatClaims(booking);
+        outboxService.publish(new BookingExpired(UUID.randomUUID(), booking.getId(), booking.getUserId(), now));
+    }
+
+    // Claim в Redis до транзакции: проигравший получает 409, не взяв соединение из пула. Не создали бронь — снимаем.
+    private BookingResponse withSeatClaim(SeatLockingMode mode, CreateBookingRequest request, String owner,
+                                          Supplier<BookingResponse> booking) {
+        if (mode != SeatLockingMode.REDIS) {
+            return booking.get();
+        }
+        // ключ живёт чуть дольше холда: пока бронь не истекла в БД, места отсекаются ещё в Redis
+        List<String> claimed = seatClaimService.claim(request.eventId(), request.seatIds(), owner,
+                properties.holdTtl().plusMinutes(1));
+        try {
+            return booking.get();
+        } catch (RuntimeException e) {
+            seatClaimService.release(claimed);
+            throw e;
+        }
+    }
+
+    private void releaseSeatClaims(Booking booking) {
+        seatClaimService.releaseSeats(booking.getEventId(),
+                booking.getSeats().stream().map(seat -> seat.getSeat().getId()).toList());
     }
 
     private CatalogEvent onSaleEvent(Long eventId) {
@@ -227,6 +281,7 @@ public class BookingService {
         PriceQuote quote = pricingService.quote(event, seats, now);
         var booking = bookingRepository.save(Booking.create(event.id(), userId, seats, quote.type(),
                 quote.seatPrices(), now, properties.holdTtl()));
+        holdExpirationRepository.schedule(booking.getId(), booking.getExpiresAt());
         outboxService.publish(new BookingCreated(UUID.randomUUID(), booking.getId(), userId, booking.getEventId(),
                 booking.getTotalPrice(), booking.getExpiresAt(), now));
         return bookingMapper.toResponse(booking);

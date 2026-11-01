@@ -41,7 +41,7 @@ class PricingServiceTest {
         // тот же порядок, что задаёт @Order в приложении
         pricingService = new PricingService(List.of(
                 new DemandPricing(PROPERTIES), new EarlyBirdPricing(PROPERTIES), new StandardPricing()),
-                seatRepository);
+                new OccupancyService(seatRepository));
         event = event(1L, EventStatus.ON_SALE, SALES_OPEN);
         seat = seat(1L, event, "10000");
     }

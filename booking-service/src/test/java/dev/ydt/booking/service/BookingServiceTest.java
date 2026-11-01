@@ -17,6 +17,7 @@ import dev.ydt.booking.exception.InvalidSeatSelectionException;
 import dev.ydt.booking.exception.SeatUnavailableException;
 import dev.ydt.booking.mapper.BookingMapper;
 import dev.ydt.booking.repository.BookingRepository;
+import dev.ydt.booking.repository.HoldExpirationRepository;
 import dev.ydt.booking.repository.IdempotencyKeyRepository;
 import dev.ydt.booking.repository.ProcessedMessageRepository;
 import dev.ydt.booking.repository.SeatRepository;
@@ -77,6 +78,10 @@ class BookingServiceTest {
     OutboxService outboxService;
     @Mock
     ProcessedMessageRepository processedMessageRepository;
+    @Mock
+    SeatClaimService seatClaimService;
+    @Mock
+    HoldExpirationRepository holdExpirationRepository;
 
     private BookingService bookingService;
     private CatalogEvent event;
@@ -90,7 +95,8 @@ class BookingServiceTest {
         var transactions = new TransactionTemplate(mock(PlatformTransactionManager.class));
         bookingService = new BookingService(bookingRepository, seatRepository, idempotencyKeyRepository,
                 pricingService, bookingMapper, properties, Clock.fixed(NOW, ZoneOffset.UTC), List.of(new InMemoryHold()),
-                catalogClient, transactions, outboxService, processedMessageRepository);
+                catalogClient, transactions, outboxService, processedMessageRepository, seatClaimService,
+                holdExpirationRepository);
         event = event(1L, EventStatus.ON_SALE, null);
         seat1 = seat(10L, event, "10000");
         seat2 = seat(11L, event, "20000");
