@@ -40,6 +40,10 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             """)
     List<Event> findOnSaleInCityAfter(String city, Instant startsAt, long id, Limit limit);
 
+    // переиндексация пачками: площадка JOIN'ом, артисты догружаются пачкой (default_batch_fetch_size)
+    @EntityGraph(attributePaths = "venue")
+    List<Event> findByIdGreaterThanOrderById(long id, Limit limit);
+
     // карточка события: площадка и артисты одним запросом
     @EntityGraph(attributePaths = {"venue", "performers"})
     Optional<Event> findWithDetailsById(Long id);

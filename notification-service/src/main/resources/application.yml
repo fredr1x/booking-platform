@@ -11,6 +11,9 @@ spring:
     mongodb:
       # индексы из @Indexed создаются на старте
       auto-index-creation: true
+      representation:
+        # сумма брони числом Decimal128, а не строкой: по ней можно считать и сортировать в самой MongoDB
+        big-decimal: decimal128
   kafka:
     consumer:
       auto-offset-reset: earliest

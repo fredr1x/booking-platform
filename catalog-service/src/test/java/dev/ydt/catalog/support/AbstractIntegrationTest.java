@@ -10,9 +10,13 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.elasticsearch.ElasticsearchContainer;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-/** Контейнеры Postgres и Redis на все тесты каталога, демо-данные (100 000 событий) накатываются один раз. */
+/**
+ * Контейнеры Postgres, Redis и Elasticsearch на все тесты каталога. Демо-данные (100 000 событий) накатываются
+ * и индексируются в Elasticsearch один раз, на старте контекста.
+ */
 @SpringBootTest
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
@@ -24,9 +28,17 @@ public abstract class AbstractIntegrationTest {
     @ServiceConnection
     protected static final GenericContainer<?> REDIS = new GenericContainer<>("redis:7.4-alpine").withExposedPorts(6379);
 
+    // без TLS и пароля, как в compose; куча 512 МБ вместо половины памяти хоста
+    @ServiceConnection
+    protected static final ElasticsearchContainer ELASTICSEARCH =
+            new ElasticsearchContainer("docker.elastic.co/elasticsearch/elasticsearch:9.2.4")
+                    .withEnv("xpack.security.enabled", "false")
+                    .withEnv("ES_JAVA_OPTS", "-Xms512m -Xmx512m");
+
     static {
         POSTGRES.start();
         REDIS.start();
+        ELASTICSEARCH.start();
     }
 
     @Autowired
