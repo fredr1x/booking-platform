@@ -18,7 +18,6 @@
             <groupId>dev.ydt.booking</groupId>
             <artifactId>booking-contracts</artifactId>
         </dependency>
-        <!-- web только ради actuator по HTTP; API истории броней появится в блоке 7 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc</artifactId>

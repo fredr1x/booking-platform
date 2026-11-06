@@ -22,6 +22,12 @@ spring:
               order: 1
               predicates:
                 - Path=/api/v1/events,/api/v1/events/**
+            # история броней пользователя: read-модель в MongoDB у notification-service
+            - id: notification-service
+              uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8084}
+              order: 2
+              predicates:
+                - Path=/api/v1/users/*/bookings
 
 server:
   port: 8080
