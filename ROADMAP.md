@@ -203,6 +203,8 @@ booking-project/
 
 ## Блок 8 · 08.11 (очередь) и 13.11 (Docker, CI) · Flash sale, тесты, CI
 
+**Сделано (8а, очередь) ✅:** `waiting-room-service` (порт 8085): очередь в sorted set, пропуск первых N одним Lua-скриптом раз в секунду, HMAC-пропуск на пользователя и событие (`AdmissionToken` в `booking-contracts`), проверка в booking-service без похода в Redis и БД, без пропуска 403. Claim нескольких мест одним Lua-скриптом «всё или ничего», ключи с hash tag. Backpressure: семафор на 100 одновременных `POST /bookings`, сверх него `503 + Retry-After`. k6 `load/flash-sale.js`: 10 000 покупателей (200 VU по 50), 9987 броней, 0 двойных продаж, 0 ответов 403, p99 брони 1.91 с, входа в очередь 1.14 с, статуса 109 мс. При пропуске 200 в секунду и частых повторах сервис падал до 50 броней в секунду, поэтому пропуск 100 в секунду. Полный холд на Lua не делали: статус места остаётся в PostgreSQL. Режим включается через `FLASH_SALE_EVENTS`. Решения в [ADR 0006](docs/adr/0006-flash-sale-queue.md). 139 тестов.
+
 **Задачи**
 1. `waiting-room-service`:
    - `POST /queue/{eventId}/join` → позиция в Redis Sorted Set (score = время входа).

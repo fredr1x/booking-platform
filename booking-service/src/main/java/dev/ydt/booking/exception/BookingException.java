@@ -7,7 +7,7 @@ package dev.ydt.booking.exception;
 public abstract sealed class BookingException extends RuntimeException
         permits EventNotFoundException, EventNotOnSaleException, BookingNotFoundException,
         SeatUnavailableException, InvalidSeatSelectionException, IllegalBookingTransitionException,
-        IdempotencyKeyReusedException, CatalogUnavailableException {
+        IdempotencyKeyReusedException, CatalogUnavailableException, AdmissionRequiredException {
 
     protected BookingException(String message) {
         super(message);

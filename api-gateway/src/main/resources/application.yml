@@ -28,6 +28,11 @@ spring:
               order: 2
               predicates:
                 - Path=/api/v1/users/*/bookings
+            - id: waiting-room-service
+              uri: ${WAITING_ROOM_SERVICE_URL:http://localhost:8085}
+              order: 3
+              predicates:
+                - Path=/api/v1/queue/**
 
 server:
   port: 8080

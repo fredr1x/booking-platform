@@ -75,6 +75,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             case InvalidSeatSelectionException e -> HttpStatus.BAD_REQUEST;
             case IdempotencyKeyReusedException e -> HttpStatus.UNPROCESSABLE_CONTENT;
             case CatalogUnavailableException e -> HttpStatus.SERVICE_UNAVAILABLE;
+            case AdmissionRequiredException e -> HttpStatus.FORBIDDEN;
         };
         var problem = ProblemDetail.forStatusAndDetail(status, ex.getMessage());
         problem.setTitle(ex.getClass().getSimpleName().replace("Exception", ""));
@@ -82,6 +83,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             problem.setProperty("seatIds", e.getSeatIds());
         }
         return problem;
+    }
+
+    // Быстрый отказ при перегрузе: Retry-After говорит клиенту, когда повторить, вместо ожидания таймаута.
+    @ExceptionHandler(BookingOverloadedException.class)
+    public ResponseEntity<ProblemDetail> handleOverloaded(BookingOverloadedException ex) {
+        var problem = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
+        problem.setTitle("Overloaded");
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(BookingOverloadedException.RETRY_AFTER_SECONDS))
+                .body(problem);
     }
 
     // Две транзакции одновременно поменяли одну бронь или место (@Version).

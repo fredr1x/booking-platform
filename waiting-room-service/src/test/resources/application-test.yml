@@ -1,0 +1,8 @@
+# Профиль интеграционных тестов. Адрес Redis подставляет Testcontainers (@ServiceConnection).
+queue:
+  event-ids: 2
+  admit-per-tick: 2
+  # проходы запускает сам тест, планировщик за время теста не сработает
+  admit-interval: 1h
+  admission-ttl: 10m
+  token-secret: test-admission-token-secret-0000001

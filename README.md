@@ -13,6 +13,7 @@ docker compose up -d --wait
 ./mvnw -pl booking-service spring-boot:run
 ./mvnw -pl payment-service spring-boot:run
 ./mvnw -pl notification-service spring-boot:run
+./mvnw -pl waiting-room-service spring-boot:run
 ./mvnw -pl api-gateway spring-boot:run
 ```
 
@@ -44,6 +45,8 @@ curl localhost:8080/api/v1/users/alice/bookings -H 'X-User-Id: alice'
 
 **История броней и поиск:** notification-service собирает историю броней пользователя из `booking.events` в MongoDB (CQRS read-модель, своя consumer group), история не нагружает БД брони. Каталог на старте индексирует события в Elasticsearch (около минуты на 100 000) и ищет по названию, артистам и площадке с опечатками. Без Elasticsearch каталог работает, не работает только поиск. Подробности в [ADR 0005](docs/adr/0005-mongo-history-and-search.md).
 
+**Старт продаж:** с `FLASH_SALE_EVENTS=2` в booking-service событие бронируется только с пропуском из виртуальной очереди (без него 403). Покупатель входит в очередь (`POST /api/v1/queue/2/join`), опрашивает `GET /api/v1/queue/2/status`, получает `admissionToken` и передаёт его в `X-Admission-Token`. Очередь пропускает 100 человек в секунду. Сверх 100 одновременных броней сервис сразу отвечает `503` и `Retry-After`. Нагрузка: `k6 run -e USERS=10000 -e USERS_PER_VU=50 load/flash-sale.js`. Подробности в [ADR 0006](docs/adr/0006-flash-sale-queue.md).
+
 **Симулятор броней:** `localhost:8080` (страница лежит в `api-gateway/src/main/resources/static`). Выбираешь событие, число покупателей и сценарий: все на одно место (гонка), каждый на своё, или с повтором по `Idempotency-Key`. Страница показывает ответы по кодам, p50/p95/p99, гистограмму задержек, места события в реальном времени и последние брони с отменой. Нагрузку она не создаёт (браузер держит около 6 соединений на хост), для цифр будет k6.
 
 Swagger UI: `localhost:8081/swagger-ui.html` (booking) и `localhost:8082/swagger-ui.html` (catalog).
@@ -65,4 +68,5 @@ Swagger UI: `localhost:8081/swagger-ui.html` (booking) и `localhost:8082/swagge
 | booking-service | 8081 | Места, брони, `Idempotency-Key`, оплата; события проверяет в каталоге; outbox в Kafka; claim мест и истечение холдов в Redis |
 | payment-service | 8083 | Заглушка платёжки: читает запросы оплаты из Kafka, отвечает результатом |
 | notification-service | 8084 | Уведомления по событиям брони и история броней пользователя (read-модель), MongoDB |
+| waiting-room-service | 8085 | Виртуальная очередь на старт продаж, пропуски с HMAC-подписью, Redis |
 | booking-contracts | — | События Kafka (sealed-интерфейсы и records) и имена топиков |
