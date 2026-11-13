@@ -1,6 +1,26 @@
 # Локальная инфраструктура. Лимиты памяти рассчитаны на ноутбук с 16 ГБ (см. PLAN.md).
 name: booking
 
+# Общие настройки сервисов из профиля apps
+x-app: &app
+  profiles: ["apps"]
+  mem_limit: 512m
+  # -XX:+ExitOnOutOfMemoryError в образе роняет процесс, Docker поднимает его заново
+  restart: on-failure
+
+x-app-healthcheck: &app-healthcheck
+  interval: 10s
+  timeout: 5s
+  # каталог на первом старте накатывает 100 000 событий
+  start_period: 120s
+  retries: 6
+
+x-app-env: &app-env
+  SPRING_PROFILES_ACTIVE: docker
+  SPRING_DATASOURCE_USERNAME: booking
+  SPRING_DATASOURCE_PASSWORD: booking
+  ADMISSION_TOKEN_SECRET: ${ADMISSION_TOKEN_SECRET:-local-dev-admission-token-secret-0001}
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -129,6 +149,163 @@ services:
       kafka:
         condition: service_healthy
     mem_limit: 512m
+
+  # Сервисы в контейнерах: docker compose --profile apps up -d --build --wait
+  # Без профиля поднимается только инфраструктура, а сервисы запускаются из IDE.
+  # Профиль docker не совпадает с local: адреса берутся из переменных ниже, а не из localhost.
+  api-gateway:
+    <<: *app
+    build:
+      context: .
+      args:
+        MODULE: api-gateway
+    image: booking/api-gateway
+    container_name: booking-api-gateway
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      BOOKING_SERVICE_URL: http://booking-service:8081
+      CATALOG_SERVICE_URL: http://catalog-service:8082
+      NOTIFICATION_SERVICE_URL: http://notification-service:8084
+      WAITING_ROOM_SERVICE_URL: http://waiting-room-service:8085
+    ports:
+      - "8080:8080"
+    healthcheck:
+      <<: *app-healthcheck
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
+    depends_on:
+      booking-service:
+        condition: service_healthy
+      catalog-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+      waiting-room-service:
+        condition: service_healthy
+
+  booking-service:
+    <<: *app
+    build:
+      context: .
+      args:
+        MODULE: booking-service
+    image: booking/booking-service
+    container_name: booking-booking-service
+    environment:
+      <<: *app-env
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/booking
+      SPRING_FLYWAY_LOCATIONS: classpath:db/migration,classpath:db/seed
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      SPRING_DATA_REDIS_HOST: redis
+      CATALOG_URL: http://catalog-service:8082
+      FLASH_SALE_EVENTS: ${FLASH_SALE_EVENTS:-}
+    ports:
+      - "8081:8081"
+    healthcheck:
+      <<: *app-healthcheck
+      test: ["CMD", "wget", "-qO-", "http://localhost:8081/actuator/health/readiness"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  catalog-service:
+    <<: *app
+    build:
+      context: .
+      args:
+        MODULE: catalog-service
+    image: booking/catalog-service
+    container_name: booking-catalog-service
+    environment:
+      <<: *app-env
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/catalog
+      SPRING_FLYWAY_LOCATIONS: classpath:db/migration,classpath:db/seed
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_ELASTICSEARCH_URIS: http://elasticsearch:9200
+    ports:
+      - "8082:8082"
+    healthcheck:
+      <<: *app-healthcheck
+      # readiness, а не весь health: без Elasticsearch каталог работает, отказывает только поиск
+      test: ["CMD", "wget", "-qO-", "http://localhost:8082/actuator/health/readiness"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+
+  payment-service:
+    <<: *app
+    build:
+      context: .
+      args:
+        MODULE: payment-service
+    image: booking/payment-service
+    container_name: booking-payment-service
+    environment:
+      <<: *app-env
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/payment
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+    ports:
+      - "8083:8083"
+    healthcheck:
+      <<: *app-healthcheck
+      test: ["CMD", "wget", "-qO-", "http://localhost:8083/actuator/health/readiness"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  notification-service:
+    <<: *app
+    build:
+      context: .
+      args:
+        MODULE: notification-service
+    image: booking/notification-service
+    container_name: booking-notification-service
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_MONGODB_URI: mongodb://mongo:27017/notification
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+    ports:
+      - "8084:8084"
+    healthcheck:
+      <<: *app-healthcheck
+      test: ["CMD", "wget", "-qO-", "http://localhost:8084/actuator/health/readiness"]
+    depends_on:
+      mongo:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  waiting-room-service:
+    <<: *app
+    build:
+      context: .
+      args:
+        MODULE: waiting-room-service
+    image: booking/waiting-room-service
+    container_name: booking-waiting-room-service
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATA_REDIS_HOST: redis
+      ADMISSION_TOKEN_SECRET: ${ADMISSION_TOKEN_SECRET:-local-dev-admission-token-secret-0001}
+      FLASH_SALE_EVENTS: ${FLASH_SALE_EVENTS:-2}
+    ports:
+      - "8085:8085"
+    healthcheck:
+      <<: *app-healthcheck
+      test: ["CMD", "wget", "-qO-", "http://localhost:8085/actuator/health/readiness"]
+    depends_on:
+      redis:
+        condition: service_healthy
 
 volumes:
   postgres-data:

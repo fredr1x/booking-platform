@@ -213,6 +213,8 @@ booking-project/
    - booking-service без валидного токена на событие в режиме flash sale отвечает 403.
 2. Lua-скрипт в Redis: проверить и захолдить несколько мест одним атомарным вызовом (всё или ничего).
 3. Backpressure: ограничение одновременных запросов в booking-service (bulkhead / семафор). При перегрузе `503 + Retry-After`, а не рост задержки до таймаута.
+**Сделано (8б, Docker и CI) ✅:** один `Dockerfile` на все сервисы с аргументом `MODULE`: многостадийная сборка (Maven один раз на шесть образов, кэш `~/.m2`), слоистый jar (код приложения — слой меньше 1 МБ), JRE alpine, пользователь не root, `-XX:MaxRAMPercentage=75` и `ExitOnOutOfMemoryError`. Профиль `apps` в compose: `docker compose --profile apps up -d --build --wait` поднимает 11 контейнеров за 2 мин 40 с, healthcheck по readiness (каталог без Elasticsearch остаётся healthy, P24). CI в GitHub Actions: `mvnw verify` с Testcontainers и сборка образов. Testcontainers уже были во всех сервисах с инфраструктурой. Решения в [ADR 0007](docs/adr/0007-docker-images-and-ci.md).
+
 4. Testcontainers во всех сервисах (Postgres, Redis, Kafka, Mongo). Общий базовый класс для тестов с переиспользованием контейнеров.
 5. Dockerfile для каждого сервиса: многостадийная сборка, слоистый jar, `-XX:MaxRAMPercentage=70`, запуск не от root. Профиль `apps` в compose.
 6. `.github/workflows/ci.yml`: build → test → docker build, кэш Maven.

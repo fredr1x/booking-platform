@@ -4,7 +4,15 @@ High-load бронирование билетов на микросервиса�
 
 ## Запуск
 
-Нужны Java 21 и Docker.
+Весь проект одной командой, нужен только Docker:
+
+```bash
+docker compose --profile apps up -d --build --wait
+```
+
+Поднимаются инфраструктура и шесть сервисов в контейнерах (первая сборка около 5 минут, старт около 3). Без `--profile apps` поднимается только инфраструктура, а сервисы запускаются из IDE. Образы и CI описаны в [ADR 0007](docs/adr/0007-docker-images-and-ci.md).
+
+Из IDE нужны Java 21 и Docker:
 
 ```bash
 docker compose up -d --wait
