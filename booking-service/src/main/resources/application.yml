@@ -50,6 +50,12 @@ catalog:
 booking:
   hold-ttl: 10m
   seat-locking: redis
+  # сверх этого числа одновременных POST /bookings сразу 503 + Retry-After; в 5 раз больше пула соединений с БД
+  max-concurrent-requests: 100
+  # события, которые можно бронировать только с пропуском из очереди; секрет вне local задаёт ADMISSION_TOKEN_SECRET
+  admission:
+    flash-sale-events: ${FLASH_SALE_EVENTS:}
+    token-secret: ${ADMISSION_TOKEN_SECRET}
   # брони истекают по очереди в Redis раз в секунду; обход таблицы только запасной, на случай потери данных в Redis
   hold-expiration-poll-interval: 1s
   expiration-sweep-interval: 5m
@@ -101,3 +107,7 @@ spring:
 
 catalog:
   url: http://localhost:8082
+
+booking:
+  admission:
+    token-secret: local-dev-admission-token-secret-0001

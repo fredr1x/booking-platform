@@ -12,6 +12,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -34,6 +35,8 @@ class BookingRedisIntegrationTest extends AbstractIntegrationTest {
     StringRedisTemplate redis;
     @Autowired
     MeterRegistry meterRegistry;
+    @Autowired
+    SeatClaimService seatClaimService;
 
     @Test
     void losersOfOneSeatAreRejectedInRedisBeforeTheDatabase() throws Exception {
@@ -88,8 +91,24 @@ class BookingRedisIntegrationTest extends AbstractIntegrationTest {
                 .isEqualTo("EXPIRED");
         assertThat(jdbc.queryForObject("SELECT status FROM seats WHERE id = ?", String.class, seat))
                 .isEqualTo("AVAILABLE");
-        assertThat(redis.hasKey("seat:1:" + seat)).as("claim снят вместе с холдом").isFalse();
+        assertThat(redis.hasKey("seat:{1}:" + seat)).as("claim снят вместе с холдом").isFalse();
         assertThat(bookingService.expireDueHolds()).as("из очереди бронь забрали один раз").isZero();
+    }
+
+    @Test
+    void claimIsAllOrNothing() {
+        var ttl = Duration.ofMinutes(1);
+        seatClaimService.claim(77L, List.of(2L), "alice", ttl);
+
+        assertThatThrownBy(() -> seatClaimService.claim(77L, List.of(1L, 2L, 3L), "bob", ttl))
+                .isInstanceOfSatisfying(SeatUnavailableException.class,
+                        e -> assertThat(e.getSeatIds()).containsExactly(2L));
+
+        assertThat(redis.hasKey("seat:{77}:1")).as("свободные места проигравший не занял").isFalse();
+        assertThat(redis.hasKey("seat:{77}:3")).isFalse();
+        assertThat(seatClaimService.claim(77L, List.of(2L, 4L), "alice", ttl))
+                .as("своё место проходит, снимать при откате надо только новые ключи")
+                .containsExactly("seat:{77}:4");
     }
 
     private long freeSeat() {

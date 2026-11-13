@@ -25,6 +25,7 @@
         <module>api-gateway</module>
         <module>payment-service</module>
         <module>notification-service</module>
+        <module>waiting-room-service</module>
     </modules>
 
     <properties>

@@ -1,6 +1,7 @@
 package dev.ydt.booking.controller;
 
 import com.jayway.jsonpath.JsonPath;
+import dev.ydt.booking.contracts.AdmissionToken;
 import dev.ydt.booking.support.AbstractIntegrationTest;
 import jakarta.persistence.EntityManagerFactory;
 import org.hibernate.SessionFactory;
@@ -11,6 +12,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,6 +32,7 @@ class BookingApiIntegrationTest extends AbstractIntegrationTest {
     // Jazz Night: продажи открылись сутки назад, поэтому действует early bird
     private static final long EVENT_ID = 1;
     private static final long DRAFT_EVENT_ID = 3;
+    private static final String ADMISSION_SECRET = "test-admission-token-secret-0000001";
 
     @Test
     void createGetAndCancelBooking() throws Exception {
@@ -106,6 +109,29 @@ class BookingApiIntegrationTest extends AbstractIntegrationTest {
                         .content("{\"eventId\": 999, \"seatIds\": [1]}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.title").value("EventNotFound"));
+    }
+
+    @Test
+    void flashSaleEventRequiresAdmissionToken() throws Exception {
+        var valid = AdmissionToken.issue(ADMISSION_SECRET, 998, "alice", Instant.now().plusSeconds(60));
+        var otherUsers = AdmissionToken.issue(ADMISSION_SECRET, 998, "bob", Instant.now().plusSeconds(60));
+
+        createFlashSaleBooking(null).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.title").value("AdmissionRequired"));
+        createFlashSaleBooking(otherUsers).andExpect(status().isForbidden());
+        // пропуск принят, дальше обычная проверка события: в заглушке каталога его нет
+        createFlashSaleBooking(valid).andExpect(status().isNotFound());
+    }
+
+    private ResultActions createFlashSaleBooking(String token) throws Exception {
+        MockHttpServletRequestBuilder request = post("/api/v1/bookings")
+                .header("X-User-Id", "alice")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"eventId\": 998, \"seatIds\": [1]}");
+        if (token != null) {
+            request.header("X-Admission-Token", token);
+        }
+        return mvc.perform(request);
     }
 
     // каталог лежит: это не «события нет» (404), а временная ошибка, которую можно повторить

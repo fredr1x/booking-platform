@@ -2,6 +2,7 @@ package dev.ydt.booking.controller;
 
 import dev.ydt.booking.dto.booking.BookingResponse;
 import dev.ydt.booking.dto.booking.CreateBookingRequest;
+import dev.ydt.booking.service.AdmissionService;
 import dev.ydt.booking.service.BookingService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
@@ -24,14 +25,19 @@ import java.net.URI;
 public class BookingController {
 
     static final String IDEMPOTENCY_HEADER = "Idempotency-Key";
+    static final String ADMISSION_HEADER = "X-Admission-Token";
 
     private final BookingService bookingService;
+    private final AdmissionService admissionService;
 
     @PostMapping
     public ResponseEntity<BookingResponse> create(@CurrentUser String userId,
                                                   @RequestHeader(name = IDEMPOTENCY_HEADER, required = false)
                                                   @Size(max = 255) String idempotencyKey,
+                                                  @RequestHeader(name = ADMISSION_HEADER, required = false)
+                                                  String admissionToken,
                                                   @Valid @RequestBody CreateBookingRequest request) {
+        admissionService.check(request.eventId(), userId, admissionToken);
         BookingResponse booking = bookingService.create(userId, idempotencyKey, request);
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}").buildAndExpand(booking.id()).toUri();

@@ -1,0 +1,10 @@
+**/target/
+.git/
+.idea/
+.github/
+docs/
+load/
+deploy/
+*.md
+*.iml
+.env

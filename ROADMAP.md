@@ -203,6 +203,8 @@ booking-project/
 
 ## Блок 8 · 08.11 (очередь) и 13.11 (Docker, CI) · Flash sale, тесты, CI
 
+**Сделано (8а, очередь) ✅:** `waiting-room-service` (порт 8085): очередь в sorted set, пропуск первых N одним Lua-скриптом раз в секунду, HMAC-пропуск на пользователя и событие (`AdmissionToken` в `booking-contracts`), проверка в booking-service без похода в Redis и БД, без пропуска 403. Claim нескольких мест одним Lua-скриптом «всё или ничего», ключи с hash tag. Backpressure: семафор на 100 одновременных `POST /bookings`, сверх него `503 + Retry-After`. k6 `load/flash-sale.js`: 10 000 покупателей (200 VU по 50), 9987 броней, 0 двойных продаж, 0 ответов 403, p99 брони 1.91 с, входа в очередь 1.14 с, статуса 109 мс. При пропуске 200 в секунду и частых повторах сервис падал до 50 броней в секунду, поэтому пропуск 100 в секунду. Полный холд на Lua не делали: статус места остаётся в PostgreSQL. Режим включается через `FLASH_SALE_EVENTS`. Решения в [ADR 0006](docs/adr/0006-flash-sale-queue.md). 139 тестов.
+
 **Задачи**
 1. `waiting-room-service`:
    - `POST /queue/{eventId}/join` → позиция в Redis Sorted Set (score = время входа).
@@ -211,6 +213,8 @@ booking-project/
    - booking-service без валидного токена на событие в режиме flash sale отвечает 403.
 2. Lua-скрипт в Redis: проверить и захолдить несколько мест одним атомарным вызовом (всё или ничего).
 3. Backpressure: ограничение одновременных запросов в booking-service (bulkhead / семафор). При перегрузе `503 + Retry-After`, а не рост задержки до таймаута.
+**Сделано (8б, Docker и CI) ✅:** один `Dockerfile` на все сервисы с аргументом `MODULE`: многостадийная сборка (Maven один раз на шесть образов, кэш `~/.m2`), слоистый jar (код приложения — слой меньше 1 МБ), JRE alpine, пользователь не root, `-XX:MaxRAMPercentage=75` и `ExitOnOutOfMemoryError`. Профиль `apps` в compose: `docker compose --profile apps up -d --build --wait` поднимает 11 контейнеров за 2 мин 40 с, healthcheck по readiness (каталог без Elasticsearch остаётся healthy, P24). CI в GitHub Actions: `mvnw verify` с Testcontainers и сборка образов. Testcontainers уже были во всех сервисах с инфраструктурой. Решения в [ADR 0007](docs/adr/0007-docker-images-and-ci.md).
+
 4. Testcontainers во всех сервисах (Postgres, Redis, Kafka, Mongo). Общий базовый класс для тестов с переиспользованием контейнеров.
 5. Dockerfile для каждого сервиса: многостадийная сборка, слоистый jar, `-XX:MaxRAMPercentage=70`, запуск не от root. Профиль `apps` в compose.
 6. `.github/workflows/ci.yml`: build → test → docker build, кэш Maven.

@@ -1,0 +1,45 @@
+spring:
+  application:
+    name: waiting-room-service
+  profiles:
+    default: local
+  threads:
+    virtual:
+      enabled: true
+  # Адрес Redis вне профиля local задают SPRING_DATA_REDIS_HOST / _PORT
+
+queue:
+  event-ids: ${FLASH_SALE_EVENTS:2}
+  # ниже устойчивой ёмкости брони: при 200 в секунду сервис сваливался в 503 и повторы, см. docs/adr/0006-flash-sale-queue.md
+  admit-per-tick: 100
+  admit-interval: 1s
+  admission-ttl: 10m
+  # секрет вне local задаёт ADMISSION_TOKEN_SECRET, он общий с booking-service
+  token-secret: ${ADMISSION_TOKEN_SECRET}
+
+server:
+  port: 8085
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+queue:
+  token-secret: local-dev-admission-token-secret-0001

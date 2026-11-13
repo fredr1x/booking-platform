@@ -13,6 +13,10 @@ spring:
         generate_statistics: true
 
 booking:
+  admission:
+    # событие только для теста пропусков: остальные тесты бронируют без токена
+    flash-sale-events: 998
+    token-secret: test-admission-token-secret-0000001
   # релей outbox тесты вызывают сами, чтобы видеть сообщения до и после отправки
   scheduling:
     enabled: false
