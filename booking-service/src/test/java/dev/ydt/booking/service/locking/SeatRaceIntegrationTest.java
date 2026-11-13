@@ -25,6 +25,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntFunction;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -56,7 +57,7 @@ class SeatRaceIntegrationTest extends AbstractIntegrationTest {
         RaceResult result = race(mode, i -> seat, i -> bookingService);
 
         report(mode + " / одно место", result);
-        assertThat(result.errors()).isZero();
+        assertThat(result.errors()).as("первая ошибка: %s", result.firstError()).isZero();
         assertThat(result.succeeded()).isEqualTo(1);
         assertThat(activeClaims(seat)).isEqualTo(1);
     }
@@ -69,7 +70,7 @@ class SeatRaceIntegrationTest extends AbstractIntegrationTest {
         RaceResult result = race(mode, seats::get, i -> bookingService);
 
         report(mode + " / разные места", result);
-        assertThat(result.errors()).isZero();
+        assertThat(result.errors()).as("первая ошибка: %s", result.firstError()).isZero();
         assertThat(result.succeeded()).isEqualTo(THREADS);
     }
 
@@ -91,7 +92,7 @@ class SeatRaceIntegrationTest extends AbstractIntegrationTest {
         RaceResult result = race(SeatLockingMode.NAIVE, i -> seat, i -> bookingService);
 
         report("NAIVE / одно место, с индексом", result);
-        assertThat(result.errors()).isZero();
+        assertThat(result.errors()).as("первая ошибка: %s", result.firstError()).isZero();
         assertThat(result.succeeded()).isEqualTo(1);
         assertThat(activeClaims(seat)).isEqualTo(1);
     }
@@ -137,6 +138,7 @@ class SeatRaceIntegrationTest extends AbstractIntegrationTest {
         var succeeded = new AtomicInteger();
         var conflicts = new AtomicInteger();
         var errors = new AtomicInteger();
+        var firstError = new AtomicReference<String>();
 
         long startedAt;
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
@@ -153,6 +155,7 @@ class SeatRaceIntegrationTest extends AbstractIntegrationTest {
                         conflicts.incrementAndGet();
                     } catch (RuntimeException e) {
                         if (errors.incrementAndGet() == 1) {
+                            firstError.set(e.toString());
                             log.error("Unexpected error in {} race", mode, e);
                         }
                     }
@@ -163,7 +166,7 @@ class SeatRaceIntegrationTest extends AbstractIntegrationTest {
             start.countDown();
         } // close() ждёт завершения всех задач
         long millis = (System.nanoTime() - startedAt) / 1_000_000;
-        return new RaceResult(succeeded.get(), conflicts.get(), errors.get(), millis);
+        return new RaceResult(succeeded.get(), conflicts.get(), errors.get(), millis, firstError.get());
     }
 
     // Убирает индекс-страховку, чтобы увидеть, что на самом деле делает код. После теста чистит двойные
@@ -192,7 +195,7 @@ class SeatRaceIntegrationTest extends AbstractIntegrationTest {
         REPORT.put(scenario, r.succeeded() + " | " + r.conflicts() + " | " + r.errors() + " | " + r.millis());
     }
 
-    private record RaceResult(int succeeded, int conflicts, int errors, long millis) {
+    private record RaceResult(int succeeded, int conflicts, int errors, long millis, String firstError) {
     }
 
     @FunctionalInterface
