@@ -95,6 +95,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .body(problem);
     }
 
+    // Платёжка недоступна. Бронь при открытом breaker не тронута, иначе уже отменена компенсацией.
+    @ExceptionHandler(PaymentUnavailableException.class)
+    public ResponseEntity<ProblemDetail> handlePaymentUnavailable(PaymentUnavailableException ex) {
+        var problem = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
+        problem.setTitle("PaymentUnavailable");
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(Math.max(1, ex.getRetryAfter().toSeconds())))
+                .body(problem);
+    }
+
     // Две транзакции одновременно поменяли одну бронь или место (@Version).
     @ExceptionHandler(OptimisticLockingFailureException.class)
     public ProblemDetail handleOptimisticLock(OptimisticLockingFailureException ex) {

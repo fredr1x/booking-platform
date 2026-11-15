@@ -19,7 +19,6 @@ import dev.ydt.booking.mapper.BookingMapper;
 import dev.ydt.booking.repository.BookingRepository;
 import dev.ydt.booking.repository.HoldExpirationRepository;
 import dev.ydt.booking.repository.IdempotencyKeyRepository;
-import dev.ydt.booking.repository.ProcessedMessageRepository;
 import dev.ydt.booking.repository.SeatRepository;
 import dev.ydt.booking.service.locking.SeatHoldStrategy;
 import dev.ydt.booking.service.locking.SeatLockingMode;
@@ -77,8 +76,6 @@ class BookingServiceTest {
     @Mock
     OutboxService outboxService;
     @Mock
-    ProcessedMessageRepository processedMessageRepository;
-    @Mock
     SeatClaimService seatClaimService;
     @Mock
     HoldExpirationRepository holdExpirationRepository;
@@ -95,7 +92,7 @@ class BookingServiceTest {
         var transactions = new TransactionTemplate(mock(PlatformTransactionManager.class));
         bookingService = new BookingService(bookingRepository, seatRepository, idempotencyKeyRepository,
                 pricingService, bookingMapper, properties, Clock.fixed(NOW, ZoneOffset.UTC), List.of(new InMemoryHold()),
-                catalogClient, transactions, outboxService, processedMessageRepository, seatClaimService,
+                catalogClient, transactions, outboxService, seatClaimService,
                 holdExpirationRepository);
         event = event(1L, EventStatus.ON_SALE, null);
         seat1 = seat(10L, event, "10000");

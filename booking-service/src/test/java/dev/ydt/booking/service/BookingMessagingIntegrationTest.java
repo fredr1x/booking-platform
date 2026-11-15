@@ -1,16 +1,12 @@
 package dev.ydt.booking.service;
 
 import dev.ydt.booking.contracts.BookingEvent;
-import dev.ydt.booking.contracts.BookingEvent.BookingCancelled;
 import dev.ydt.booking.contracts.BookingEvent.BookingConfirmed;
 import dev.ydt.booking.contracts.BookingEvent.BookingCreated;
 import dev.ydt.booking.contracts.BookingEvent.PaymentRequested;
-import dev.ydt.booking.contracts.PaymentEvent.PaymentFailed;
-import dev.ydt.booking.contracts.PaymentEvent.PaymentSucceeded;
 import dev.ydt.booking.contracts.Topics;
 import dev.ydt.booking.dto.booking.BookingResponse;
 import dev.ydt.booking.dto.booking.CreateBookingRequest;
-import dev.ydt.booking.entity.enums.BookingStatus;
 import dev.ydt.booking.support.AbstractIntegrationTest;
 import dev.ydt.booking.support.TopicReader;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -18,25 +14,18 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.kafka.core.KafkaTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Duration;
-import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.awaitility.Awaitility.await;
 
-/**
- * Бронь → outbox → Kafka → оплата → статус брони. Роль payment-service играет тест: сам пишет
- * результат оплаты в payment.events, так сервис проверяется без второго приложения.
- */
+/** Бронь → outbox → Kafka: порядок событий одной брони и два релея на одном outbox. */
 class BookingMessagingIntegrationTest extends AbstractIntegrationTest {
 
     private static final String USER = "kafka-user";
@@ -49,7 +38,7 @@ class BookingMessagingIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     JdbcTemplate jdbc;
     @Autowired
-    KafkaTemplate<String, String> kafkaTemplate;
+    PaymentSagaService sagaService;
     @Autowired
     JsonMapper jsonMapper;
 
@@ -62,68 +51,22 @@ class BookingMessagingIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void bookingIsConfirmedByPaymentResultFromKafka() throws Exception {
+    void bookingEventsGoToKafkaInOrder() {
         BookingResponse booking = createBooking();
         assertThat(outboxSize()).as("событие лежит в outbox до отправки").isEqualTo(1);
 
-        bookingService.pay(booking.id(), USER);
-        assertThat(outboxService.relayBatch()).isEqualTo(2);
+        // заглушка платёжки подтверждает сразу: Created, PaymentRequested и Confirmed уже в outbox
+        sagaService.pay(booking.id(), USER);
+        assertThat(outboxService.relayBatch()).isEqualTo(3);
         assertThat(outboxSize()).isZero();
 
         try (var reader = new TopicReader(KAFKA.getBootstrapServers(), Topics.BOOKING_EVENTS)) {
-            List<BookingEvent> events = eventsOf(reader, booking.id(), 2);
+            List<BookingEvent> events = eventsOf(reader, booking.id(), 3);
             assertThat(events).extracting(Object::getClass)
                     .as("события одной брони в одной партиции, порядок сохранён")
-                    .containsExactly(BookingCreated.class, PaymentRequested.class);
+                    .containsExactly(BookingCreated.class, PaymentRequested.class, BookingConfirmed.class);
             var request = (PaymentRequested) events.get(1);
             assertThat(request.amount()).isEqualByComparingTo(booking.totalPrice());
-
-            sendPaymentResult(new PaymentSucceeded(UUID.randomUUID(), booking.id(), request.paymentId(), Instant.now()));
-
-            await().atMost(WAIT).until(() -> statusOf(booking.id()) == BookingStatus.CONFIRMED);
-            assertThat(seatStatuses(booking.id())).containsOnly("BOOKED");
-
-            outboxService.relayBatch();
-            assertThat(eventsOf(reader, booking.id(), 3).getLast()).isInstanceOf(BookingConfirmed.class);
-        }
-    }
-
-    @Test
-    void redeliveredPaymentResultChangesNothing() {
-        BookingResponse booking = createBooking();
-        var paying = bookingService.pay(booking.id(), USER);
-        var result = new PaymentSucceeded(UUID.randomUUID(), booking.id(), paying.paymentId(), Instant.now());
-
-        bookingService.applyPayment(result);
-        int outboxAfterFirst = outboxSize();
-        bookingService.applyPayment(result);
-
-        assertThat(statusOf(booking.id())).isEqualTo(BookingStatus.CONFIRMED);
-        assertThat(outboxSize()).as("второй BookingConfirmed не появился").isEqualTo(outboxAfterFirst);
-    }
-
-    @Test
-    void failedPaymentCancelsBookingAndReleasesSeats() {
-        BookingResponse booking = createBooking();
-        var paying = bookingService.pay(booking.id(), USER);
-
-        bookingService.applyPayment(new PaymentFailed(UUID.randomUUID(), booking.id(), paying.paymentId(),
-                "Card declined", Instant.now()));
-
-        assertThat(statusOf(booking.id())).isEqualTo(BookingStatus.CANCELLED);
-        assertThat(seatStatuses(booking.id())).containsOnly("AVAILABLE");
-        String payload = jdbc.queryForObject("SELECT payload::text FROM outbox ORDER BY id DESC LIMIT 1", String.class);
-        assertThat(jsonMapper.readValue(payload, BookingEvent.class))
-                .isInstanceOfSatisfying(BookingCancelled.class, e -> assertThat(e.reason()).isEqualTo("PAYMENT_FAILED"));
-    }
-
-    @Test
-    void brokenPaymentMessageGoesStraightToDeadLetterTopic() {
-        String poison = "not-json-" + UUID.randomUUID();
-        kafkaTemplate.send(Topics.PAYMENT_EVENTS, "1", poison).join();
-
-        try (var reader = new TopicReader(KAFKA.getBootstrapServers(), Topics.PAYMENT_EVENTS + "-booking-dlt")) {
-            assertThat(reader.await(r -> r.value().equals(poison), 1, WAIT)).hasSize(1);
         }
     }
 
@@ -169,10 +112,6 @@ class BookingMessagingIntegrationTest extends AbstractIntegrationTest {
         return bookingService.create(USER, new CreateBookingRequest(1L, List.of(seatId)));
     }
 
-    private void sendPaymentResult(Object result) {
-        kafkaTemplate.send(Topics.PAYMENT_EVENTS, "key", jsonMapper.writeValueAsString(result)).join();
-    }
-
     private List<BookingEvent> eventsOf(TopicReader reader, Long bookingId, int count) {
         return reader.await(r -> r.key().equals(bookingId.toString()), count, WAIT).stream()
                 .map(r -> jsonMapper.readValue(r.value(), BookingEvent.class))
@@ -183,14 +122,4 @@ class BookingMessagingIntegrationTest extends AbstractIntegrationTest {
         return jdbc.queryForObject("SELECT count(*) FROM outbox", Integer.class);
     }
 
-    private BookingStatus statusOf(Long bookingId) {
-        return BookingStatus.valueOf(jdbc.queryForObject("SELECT status FROM bookings WHERE id = ?", String.class,
-                bookingId));
-    }
-
-    private List<String> seatStatuses(Long bookingId) {
-        return jdbc.queryForList("""
-                SELECT s.status FROM seats s JOIN booking_seats bs ON bs.seat_id = s.id WHERE bs.booking_id = ?
-                """, String.class, bookingId);
-    }
 }

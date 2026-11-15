@@ -42,7 +42,7 @@ public sealed interface BookingEvent {
     ) implements BookingEvent {
     }
 
-    /** Пользователь нажал «оплатить»: payment-service списывает {@code amount} и отвечает в payment.events. */
+    /** Оплата начата: booking-service синхронно вызывает payment-service, итог придёт BookingConfirmed или BookingCancelled. */
     record PaymentRequested(
             UUID messageId,
             Long bookingId,
@@ -62,7 +62,7 @@ public sealed interface BookingEvent {
     ) implements BookingEvent {
     }
 
-    /** {@code reason}: USER_REQUEST или PAYMENT_FAILED. Строка, а не enum: новая причина не ломает старых consumer'ов. */
+    /** {@code reason}: USER_REQUEST, PAYMENT_FAILED или PAYMENT_UNAVAILABLE. Строка, а не enum: новая причина не ломает старых consumer'ов. */
     record BookingCancelled(
             UUID messageId,
             Long bookingId,

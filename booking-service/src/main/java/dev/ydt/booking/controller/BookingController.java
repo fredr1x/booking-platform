@@ -4,6 +4,7 @@ import dev.ydt.booking.dto.booking.BookingResponse;
 import dev.ydt.booking.dto.booking.CreateBookingRequest;
 import dev.ydt.booking.service.AdmissionService;
 import dev.ydt.booking.service.BookingService;
+import dev.ydt.booking.service.PaymentSagaService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,7 @@ public class BookingController {
 
     private final BookingService bookingService;
     private final AdmissionService admissionService;
+    private final PaymentSagaService paymentSagaService;
 
     @PostMapping
     public ResponseEntity<BookingResponse> create(@CurrentUser String userId,
@@ -51,7 +53,7 @@ public class BookingController {
 
     @PostMapping("/{id}/pay")
     public BookingResponse pay(@CurrentUser String userId, @PathVariable Long id) {
-        return bookingService.pay(id, userId);
+        return paymentSagaService.pay(id, userId);
     }
 
     @PostMapping("/{id}/cancel")
