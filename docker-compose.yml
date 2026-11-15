@@ -167,12 +167,16 @@ services:
       CATALOG_SERVICE_URL: http://catalog-service:8082
       NOTIFICATION_SERVICE_URL: http://notification-service:8084
       WAITING_ROOM_SERVICE_URL: http://waiting-room-service:8085
+      # бакеты rate limiter'а
+      SPRING_DATA_REDIS_HOST: redis
     ports:
       - "8080:8080"
     healthcheck:
       <<: *app-healthcheck
       test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
     depends_on:
+      redis:
+        condition: service_healthy
       booking-service:
         condition: service_healthy
       catalog-service:
@@ -197,6 +201,7 @@ services:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
       SPRING_DATA_REDIS_HOST: redis
       CATALOG_URL: http://catalog-service:8082
+      PAYMENT_URL: http://payment-service:8083
       FLASH_SALE_EVENTS: ${FLASH_SALE_EVENTS:-}
     ports:
       - "8081:8081"
@@ -250,7 +255,9 @@ services:
     environment:
       <<: *app-env
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/payment
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      # chaos-режим: PAYMENT_ERROR_RATE=0.5 PAYMENT_DELAY=3s docker compose --profile apps up -d payment-service
+      PAYMENT_ERROR_RATE: ${PAYMENT_ERROR_RATE:-0}
+      PAYMENT_DELAY: ${PAYMENT_DELAY:-500ms}
     ports:
       - "8083:8083"
     healthcheck:
@@ -258,8 +265,6 @@ services:
       test: ["CMD", "wget", "-qO-", "http://localhost:8083/actuator/health/readiness"]
     depends_on:
       postgres:
-        condition: service_healthy
-      kafka:
         condition: service_healthy
 
   notification-service:

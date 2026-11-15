@@ -230,6 +230,8 @@ booking-project/
 
 ## Блок 9 · 15.11 · Rate limiter, circuit breaker, saga
 
+**Сделано ✅:** rate limiter в gateway: token bucket в Redis (`RequestRateLimiter`), 50 в секунду на пользователя и отдельно 5 в секунду на `POST /bookings/**`, `429` с `X-RateLimit-Remaining` и `Retry-After`, при падении Redis fail-open. Оплата стала синхронной: payment-service отдаёт `authorize` и `refund`, идемпотентные по `paymentId`, Kafka из него убрана. Resilience4j (core, без стартера) на вызове платёжки: таймаут 2 с, retry только для таймаута и 5xx, circuit breaker, bulkhead на 20. Сага с оркестратором и таблицей `saga_state`: отказ или сбой оплаты отменяет бронь и сразу освобождает места, деньги возвращаются компенсацией, уборщик повторяет возврат и доводит саги после падения сервиса. Каталог: circuit breaker и fallback на последнее известное событие в Redis. Поиск без Elasticsearch теперь `503`. Chaos `load/payment-chaos.js` (50% ошибок, задержка 3 с): оплата отвечает за 7 мс вместо 3.1 с, p99 чтения 32 и 92 мс против 30 и 79 мс без защиты, ни одной зависшей брони. Своё скользящее окно на Lua не делали. Решения в [ADR 0008](docs/adr/0008-resilience-and-saga.md). 147 тестов.
+
 **Задачи**
 1. **Rate limiter:**
    - В gateway: token bucket в Redis (`RequestRateLimiter`), ключ — `X-User-Id` или IP, разные лимиты на чтение и на `POST /bookings`.

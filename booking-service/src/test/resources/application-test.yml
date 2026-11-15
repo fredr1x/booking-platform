@@ -20,5 +20,8 @@ booking:
   # релей outbox тесты вызывают сами, чтобы видеть сообщения до и после отправки
   scheduling:
     enabled: false
-  kafka:
-    retry-delay: 100ms
+
+# Адрес заглушки платёжки подставляет AbstractIntegrationTest. Короткие таймауты: тест на сбои не ждёт по 2 с.
+payment:
+  timeout: 300ms
+  retry-wait: 10ms

@@ -75,10 +75,7 @@ class SeatRaceIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void naiveSellsSeatTwiceWithoutSafetyNet() throws Exception {
-        long seat = freeSeats(1).getFirst();
-
-        RaceResult result = withoutSafetyNet(seat,
-                () -> race(SeatLockingMode.NAIVE, i -> seat, i -> bookingService));
+        RaceResult result = untilDoubleSold(seat -> race(SeatLockingMode.NAIVE, i -> seat, i -> bookingService));
 
         report("NAIVE / одно место, без индекса", result);
         assertThat(result.succeeded()).as("check-then-act продаёт одно место несколько раз").isGreaterThan(1);
@@ -98,8 +95,6 @@ class SeatRaceIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void jvmLockSellsSeatTwiceOnTwoInstances() throws Exception {
-        long seat = freeSeats(1).getFirst();
-
         // второй инстанс сервиса: отдельный Spring-контекст со своими блокировками в памяти, та же база
         try (ConfigurableApplicationContext secondInstance = new SpringApplicationBuilder(BookingServiceApplication.class)
                 .web(WebApplicationType.NONE)
@@ -115,7 +110,7 @@ class SeatRaceIntegrationTest extends AbstractIntegrationTest {
                         "--catalog.url=" + catalogUrl())) {
             BookingService other = secondInstance.getBean(BookingService.class);
 
-            RaceResult result = withoutSafetyNet(seat, () -> race(SeatLockingMode.JVM_LOCK, i -> seat,
+            RaceResult result = untilDoubleSold(seat -> race(SeatLockingMode.JVM_LOCK, i -> seat,
                     i -> i % 2 == 0 ? bookingService : other));
 
             report("JVM_LOCK / одно место, 2 инстанса, без индекса", result);
@@ -166,6 +161,17 @@ class SeatRaceIntegrationTest extends AbstractIntegrationTest {
         return new RaceResult(succeeded.get(), conflicts.get(), errors.get(), millis);
     }
 
+    // Гонка вероятностная: на медленной машине потоки могут разойтись во времени и не столкнуться.
+    // Тест доказывает, что двойная продажа возможна, поэтому даём ей несколько попыток на свежих местах.
+    private RaceResult untilDoubleSold(SeatRace race) throws InterruptedException {
+        RaceResult result = null;
+        for (int attempt = 0; attempt < 5 && (result == null || result.succeeded() <= 1); attempt++) {
+            long seat = freeSeats(1).getFirst();
+            result = withoutSafetyNet(seat, () -> race.run(seat));
+        }
+        return result;
+    }
+
     // Убирает индекс-страховку, чтобы увидеть, что на самом деле делает код. После теста чистит двойные
     // продажи (иначе индекс не создать заново) и возвращает индекс.
     private RaceResult withoutSafetyNet(long seat, Race race) throws InterruptedException {
@@ -193,6 +199,11 @@ class SeatRaceIntegrationTest extends AbstractIntegrationTest {
     }
 
     private record RaceResult(int succeeded, int conflicts, int errors, long millis) {
+    }
+
+    @FunctionalInterface
+    private interface SeatRace {
+        RaceResult run(long seat) throws InterruptedException;
     }
 
     @FunctionalInterface

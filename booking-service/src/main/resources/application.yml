@@ -37,15 +37,24 @@ spring:
         max.block.ms: 5000
         delivery.timeout.ms: 10000
         request.timeout.ms: 5000
-    consumer:
-      # новая группа читает топик с начала, а не только новые сообщения
-      auto-offset-reset: earliest
 
 # Вне профиля local адрес каталога задаёт переменная CATALOG_URL
 catalog:
   timeout: 2s
   # одинаковые проверки события на старте продаж склеиваются, ответ каталога живёт в памяти столько
   cache-ttl: 5s
+  # последнее известное событие в Redis: им отвечаем, когда каталог лежит или открыт circuit breaker
+  fallback-ttl: 10m
+
+# Вне профиля local адрес платёжки задаёт переменная PAYMENT_URL. Почему такие числа — docs/adr/0008-resilience-and-saga.md
+payment:
+  # обычный ответ заглушки 0.5 с; ждать дольше 2 с значит держать поток брони ради почти наверняка мёртвой платёжки
+  timeout: 2s
+  max-attempts: 2
+  retry-wait: 200ms
+  failure-rate-threshold: 50
+  open-state-wait: 10s
+  max-concurrent-calls: 20
 
 booking:
   hold-ttl: 10m
@@ -61,9 +70,11 @@ booking:
   expiration-sweep-interval: 5m
   outbox:
     relay-interval: 200ms
-  kafka:
-    # первая пауза перед повтором сообщения, дальше ×2
-    retry-delay: 1s
+  saga:
+    recovery-interval: 5s
+    # сага на авторизации дольше этого брошена (сервис упал посреди вызова): все попытки укладываются в 5 с
+    authorizing-timeout: 1m
+    refund-retry-delay: 10s
   pricing:
     early-bird-window: 72h
     early-bird-discount: 0.15
@@ -107,6 +118,9 @@ spring:
 
 catalog:
   url: http://localhost:8082
+
+payment:
+  url: http://localhost:8083
 
 booking:
   admission:

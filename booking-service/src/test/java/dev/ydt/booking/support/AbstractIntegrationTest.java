@@ -1,6 +1,7 @@
 package dev.ydt.booking.support;
 
 import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -19,7 +20,11 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -27,7 +32,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Контейнер стартует в static-блоке и живёт до конца JVM (singleton container pattern).
  * <p>
  * Вместо catalog-service поднимается HTTP-заглушка из JDK с теми же демо-событиями, что в каталоге:
- * так CatalogClient проверяется по-настоящему, через HTTP и JSON.
+ * так CatalogClient проверяется по-настоящему, через HTTP и JSON. Так же устроена заглушка payment-service,
+ * её поведение тест переключает через {@link #paymentMode}.
  */
 // Настройки тестов в application-test.yml: демо-данные, без планировщика, длинное ожидание пула.
 @SpringBootTest
@@ -50,7 +56,27 @@ public abstract class AbstractIntegrationTest {
     /** Сколько HTTP-запросов дошло до заглушки каталога. */
     protected static final AtomicInteger CATALOG_REQUESTS = new AtomicInteger();
 
-    private static final HttpServer CATALOG = startCatalogStub();
+    /** Как отвечает заглушка платёжки: SLOW отвечает дольше таймаута клиента, ERROR — 500. */
+    protected enum PaymentMode {
+        APPROVE,
+        DECLINE,
+        ERROR,
+        SLOW
+    }
+
+    protected static volatile PaymentMode paymentMode = PaymentMode.APPROVE;
+
+    /** Если задан, authorize ждёт его (не дольше таймаута клиента): тест успевает что-то сделать посреди оплаты. */
+    protected static volatile CountDownLatch paymentGate;
+
+    /** Сколько HTTP-запросов дошло до заглушки платёжки (authorize и refund). */
+    protected static final AtomicInteger PAYMENT_REQUESTS = new AtomicInteger();
+
+    /** paymentId, по которым пришёл успешный refund. */
+    protected static final Set<String> REFUNDED_PAYMENTS = ConcurrentHashMap.newKeySet();
+
+    private static final HttpServer CATALOG = startStub("/api/v1/events/", AbstractIntegrationTest::catalogResponse);
+    private static final HttpServer PAYMENT = startStub("/api/v1/payments", AbstractIntegrationTest::paymentResponse);
 
     static {
         POSTGRES.start();
@@ -64,19 +90,20 @@ public abstract class AbstractIntegrationTest {
     @DynamicPropertySource
     static void catalogUrl(DynamicPropertyRegistry registry) {
         registry.add("catalog.url", AbstractIntegrationTest::catalogUrl);
+        registry.add("payment.url", () -> "http://localhost:" + PAYMENT.getAddress().getPort());
     }
 
     protected static String catalogUrl() {
         return "http://localhost:" + CATALOG.getAddress().getPort();
     }
 
-    private static HttpServer startCatalogStub() {
+    private static HttpServer startStub(String path, HttpHandler handler) {
         try {
             // тест на гонку шлёт в каталог 1000 запросов разом: нужны большая очередь соединений
             // и поток на запрос, иначе заглушка сама станет узким местом и начнёт отказывать
             var server = HttpServer.create(new InetSocketAddress(0), 2000);
             server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
-            server.createContext("/api/v1/events/", AbstractIntegrationTest::catalogResponse);
+            server.createContext(path, handler);
             server.start();
             return server;
         } catch (IOException e) {
@@ -102,6 +129,48 @@ public abstract class AbstractIntegrationTest {
         if (bytes.length > 0) {
             exchange.getResponseBody().write(bytes);
         }
+        exchange.close();
+    }
+
+    // authorize: POST /api/v1/payments с Idempotency-Key, refund: POST /api/v1/payments/{id}/refund
+    private static void paymentResponse(HttpExchange exchange) throws IOException {
+        PAYMENT_REQUESTS.incrementAndGet();
+        String path = exchange.getRequestURI().getPath();
+        boolean refund = path.endsWith("/refund");
+        String paymentId = refund
+                ? path.substring("/api/v1/payments/".length(), path.length() - "/refund".length())
+                : exchange.getRequestHeaders().getFirst("Idempotency-Key");
+        CountDownLatch gate = paymentGate;
+        if (gate != null && !refund) {
+            try {
+                gate.await(250, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        PaymentMode mode = paymentMode;
+        if (mode == PaymentMode.SLOW) {
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        if (mode == PaymentMode.ERROR) {
+            exchange.sendResponseHeaders(500, -1);
+            exchange.close();
+            return;
+        }
+        String status = refund ? "REFUNDED" : mode == PaymentMode.DECLINE ? "FAILED" : "SUCCEEDED";
+        if (refund) {
+            REFUNDED_PAYMENTS.add(paymentId);
+        }
+        byte[] bytes = """
+                {"paymentId": "%s", "status": "%s", "failureReason": null}
+                """.formatted(paymentId, status).getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().set("Content-Type", "application/json");
+        exchange.sendResponseHeaders(200, bytes.length);
+        exchange.getResponseBody().write(bytes);
         exchange.close();
     }
 
