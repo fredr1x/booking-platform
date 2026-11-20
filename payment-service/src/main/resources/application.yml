@@ -23,10 +23,15 @@ server:
   shutdown: graceful
 
 management:
+  metrics:
+    distribution:
+      # бакеты гистограммы: p95/p99 считает Prometheus (histogram_quantile) сразу по всем инстансам
+      percentiles-histogram:
+        http.server.requests: true
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       probes:

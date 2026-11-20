@@ -1,0 +1,22 @@
+# Сервисы из профиля apps, адреса — имена контейнеров в сети compose.
+# Сервис из IDE сюда не попадёт: для него добавь цель host.docker.internal:<порт>.
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: booking
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: [api-gateway:8080]
+        labels: {application: api-gateway}
+      - targets: [booking-service:8081]
+        labels: {application: booking-service}
+      - targets: [catalog-service:8082]
+        labels: {application: catalog-service}
+      - targets: [payment-service:8083]
+        labels: {application: payment-service}
+      - targets: [notification-service:8084]
+        labels: {application: notification-service}
+      - targets: [waiting-room-service:8085]
+        labels: {application: waiting-room-service}

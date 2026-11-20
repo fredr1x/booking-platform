@@ -2,15 +2,19 @@ package dev.ydt.booking.service;
 
 import dev.ydt.booking.contracts.BookingEvent;
 import dev.ydt.booking.contracts.Topics;
+import dev.ydt.booking.contracts.web.RequestIdFilter;
 import dev.ydt.booking.entity.OutboxMessage;
 import dev.ydt.booking.repository.OutboxRepository;
 import lombok.RequiredArgsConstructor;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.slf4j.MDC;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -38,7 +42,8 @@ public class OutboxService {
     @Transactional(propagation = Propagation.MANDATORY)
     public void publish(BookingEvent event) {
         outboxRepository.save(new OutboxMessage(event.messageId(), Topics.BOOKING_EVENTS,
-                event.bookingId().toString(), jsonMapper.writeValueAsString(event), clock.instant()));
+                event.bookingId().toString(), jsonMapper.writeValueAsString(event), clock.instant(),
+                MDC.get(RequestIdFilter.MDC_KEY)));
     }
 
     /**
@@ -57,7 +62,7 @@ public class OutboxService {
             return 0;
         }
         var sends = batch.stream()
-                .map(message -> kafkaTemplate.send(message.getTopic(), message.getMessageKey(), message.getPayload()))
+                .map(message -> kafkaTemplate.send(toRecord(message)))
                 .toArray(CompletableFuture[]::new);
         try {
             CompletableFuture.allOf(sends).get(SEND_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -69,5 +74,13 @@ public class OutboxService {
         }
         outboxRepository.deleteAllInBatch(batch);
         return batch.size();
+    }
+
+    private static ProducerRecord<String, String> toRecord(OutboxMessage message) {
+        var record = new ProducerRecord<String, String>(message.getTopic(), message.getMessageKey(), message.getPayload());
+        if (message.getRequestId() != null) {
+            record.headers().add(RequestIdFilter.HEADER, message.getRequestId().getBytes(StandardCharsets.UTF_8));
+        }
+        return record;
     }
 }

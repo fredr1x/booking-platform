@@ -17,6 +17,8 @@ x-app-healthcheck: &app-healthcheck
 
 x-app-env: &app-env
   SPRING_PROFILES_ACTIVE: docker
+  # JSON-логи (ECS) в stdout, их забирает Alloy в Loki; из IDE логи остаются обычным текстом
+  LOGGING_STRUCTURED_FORMAT_CONSOLE: ecs
   SPRING_DATASOURCE_USERNAME: booking
   SPRING_DATASOURCE_PASSWORD: booking
   ADMISSION_TOKEN_SECRET: ${ADMISSION_TOKEN_SECRET:-local-dev-admission-token-secret-0001}
@@ -163,6 +165,7 @@ services:
     container_name: booking-api-gateway
     environment:
       SPRING_PROFILES_ACTIVE: docker
+      LOGGING_STRUCTURED_FORMAT_CONSOLE: ecs
       BOOKING_SERVICE_URL: http://booking-service:8081
       CATALOG_SERVICE_URL: http://catalog-service:8082
       NOTIFICATION_SERVICE_URL: http://notification-service:8084
@@ -277,6 +280,7 @@ services:
     container_name: booking-notification-service
     environment:
       SPRING_PROFILES_ACTIVE: docker
+      LOGGING_STRUCTURED_FORMAT_CONSOLE: ecs
       SPRING_MONGODB_URI: mongodb://mongo:27017/notification
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
     ports:
@@ -300,6 +304,7 @@ services:
     container_name: booking-waiting-room-service
     environment:
       SPRING_PROFILES_ACTIVE: docker
+      LOGGING_STRUCTURED_FORMAT_CONSOLE: ecs
       SPRING_DATA_REDIS_HOST: redis
       ADMISSION_TOKEN_SECRET: ${ADMISSION_TOKEN_SECRET:-local-dev-admission-token-secret-0001}
       FLASH_SALE_EVENTS: ${FLASH_SALE_EVENTS:-2}
@@ -311,6 +316,64 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+
+  # Observability: docker compose --profile apps --profile obs up -d --wait, затем Grafana на http://localhost:3000
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: booking-prometheus
+    profiles: ["obs"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      # локально хватает суток истории
+      - --storage.tsdb.retention.time=1d
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/compose/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    mem_limit: 512m
+
+  loki:
+    image: grafana/loki:3.5.0
+    container_name: booking-loki
+    profiles: ["obs"]
+    # конфиг из образа: один процесс, хранение на диске контейнера
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    ports:
+      - "3100:3100"
+    mem_limit: 512m
+
+  # Забирает stdout контейнеров проекта через Docker API и отправляет в Loki
+  alloy:
+    image: grafana/alloy:v1.10.0
+    container_name: booking-alloy
+    profiles: ["obs"]
+    command: ["run", "/etc/alloy/config.alloy", "--storage.path=/var/lib/alloy/data"]
+    volumes:
+      - ./deploy/compose/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+    mem_limit: 256m
+
+  grafana:
+    image: grafana/grafana:12.2.0
+    container_name: booking-grafana
+    profiles: ["obs"]
+    environment:
+      # только для локального стенда: вход без пароля с правами администратора
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/booking-overview.json
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./deploy/compose/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/compose/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+      - loki
+    mem_limit: 256m
 
 volumes:
   postgres-data:

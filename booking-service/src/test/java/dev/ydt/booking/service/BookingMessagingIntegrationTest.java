@@ -5,6 +5,7 @@ import dev.ydt.booking.contracts.BookingEvent.BookingConfirmed;
 import dev.ydt.booking.contracts.BookingEvent.BookingCreated;
 import dev.ydt.booking.contracts.BookingEvent.PaymentRequested;
 import dev.ydt.booking.contracts.Topics;
+import dev.ydt.booking.contracts.web.RequestIdFilter;
 import dev.ydt.booking.dto.booking.BookingResponse;
 import dev.ydt.booking.dto.booking.CreateBookingRequest;
 import dev.ydt.booking.support.AbstractIntegrationTest;
@@ -12,10 +13,12 @@ import dev.ydt.booking.support.TopicReader;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.List;
@@ -67,6 +70,26 @@ class BookingMessagingIntegrationTest extends AbstractIntegrationTest {
                     .containsExactly(BookingCreated.class, PaymentRequested.class, BookingConfirmed.class);
             var request = (PaymentRequested) events.get(1);
             assertThat(request.amount()).isEqualByComparingTo(booking.totalPrice());
+        }
+    }
+
+    @Test
+    void requestIdGoesToKafkaHeader() {
+        BookingResponse booking;
+        // так запрос видит RequestIdFilter: id в MDC на время обработки
+        MDC.put(RequestIdFilter.MDC_KEY, "req-kafka-1");
+        try {
+            booking = createBooking();
+        } finally {
+            MDC.remove(RequestIdFilter.MDC_KEY);
+        }
+        outboxService.relayBatch();
+
+        try (var reader = new TopicReader(KAFKA.getBootstrapServers(), Topics.BOOKING_EVENTS)) {
+            var record = reader.await(r -> r.key().equals(booking.id().toString()), 1, WAIT).getFirst();
+            var header = record.headers().lastHeader(RequestIdFilter.HEADER);
+            assertThat(header).isNotNull();
+            assertThat(new String(header.value(), StandardCharsets.UTF_8)).isEqualTo("req-kafka-1");
         }
     }
 

@@ -42,11 +42,16 @@ public class OutboxMessage {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    public OutboxMessage(UUID messageId, String topic, String messageKey, String payload, Instant createdAt) {
+    @Column(name = "request_id", updatable = false)
+    private String requestId;
+
+    public OutboxMessage(UUID messageId, String topic, String messageKey, String payload, Instant createdAt,
+                         String requestId) {
         this.messageId = messageId;
         this.topic = topic;
         this.messageKey = messageKey;
         this.payload = payload;
         this.createdAt = createdAt;
+        this.requestId = requestId;
     }
 }
