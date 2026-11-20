@@ -30,6 +30,11 @@ public class QueueRepository {
         return redis.opsForZSet().rank(queueKey(eventId), userId);
     }
 
+    public long size(long eventId) {
+        Long size = redis.opsForZSet().zCard(queueKey(eventId));
+        return size == null ? 0 : size;
+    }
+
     /** @return сколько ещё действует пропуск в мс; не больше нуля, если пропуска нет */
     public long admissionTtlMillis(long eventId, String userId) {
         return redis.getExpire(admittedPrefix(eventId) + userId, TimeUnit.MILLISECONDS);

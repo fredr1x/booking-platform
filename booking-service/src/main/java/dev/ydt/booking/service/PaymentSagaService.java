@@ -56,6 +56,7 @@ public class PaymentSagaService {
     private final BookingMapper bookingMapper;
     private final TransactionTemplate transactionTemplate;
     private final Clock clock;
+    private final BookingMetrics metrics;
 
     private record PaymentStep(Long bookingId, String paymentId, String userId, BigDecimal amount) {
     }
@@ -106,6 +107,7 @@ public class PaymentSagaService {
         } catch (PaymentUnavailableException e) {
             // ответа нет: платёж мог пройти, а мог и нет. Отменяем бронь и отменяем платёж на стороне платёжки
             log.warn("Payment {} for booking {} failed, compensating", step.paymentId(), step.bookingId(), e);
+            metrics.paymentAttempt("unavailable");
             transition(step.bookingId(), saga -> {
                 cancelIfAwaiting(saga.getBookingId(), CancelReason.PAYMENT_UNAVAILABLE);
                 saga.startCompensation(rootMessage(e), clock.instant());
@@ -113,6 +115,8 @@ public class PaymentSagaService {
             refund(step.bookingId(), step.paymentId());
             return;
         }
+        log.info("Payment {} for booking {}: {}", step.paymentId(), step.bookingId(), result.status());
+        metrics.paymentAttempt(result.succeeded() ? "succeeded" : "declined");
         if (!result.succeeded()) {
             // банк отказал: денег не списали, возвращать нечего, достаточно освободить места
             transition(step.bookingId(), saga -> {

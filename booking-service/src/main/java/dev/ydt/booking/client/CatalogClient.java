@@ -1,5 +1,6 @@
 package dev.ydt.booking.client;
 
+import dev.ydt.booking.contracts.web.RequestIdFilter;
 import dev.ydt.booking.dto.event.CatalogEvent;
 import dev.ydt.booking.exception.CatalogUnavailableException;
 import dev.ydt.booking.exception.EventNotFoundException;
@@ -63,7 +64,8 @@ public class CatalogClient {
         var requestFactory = new JdkClientHttpRequestFactory(
                 HttpClient.newBuilder().connectTimeout(timeout).build());
         requestFactory.setReadTimeout(timeout);
-        this.restClient = RestClient.builder().baseUrl(url).requestFactory(requestFactory).build();
+        this.restClient = RestClient.builder().baseUrl(url).requestFactory(requestFactory)
+                .requestInterceptor(RequestIdFilter.propagate()).build();
         this.cacheTtl = cacheTtl;
         this.fallbackTtl = fallbackTtl;
         this.redis = redis;

@@ -93,7 +93,7 @@ class BookingServiceTest {
         bookingService = new BookingService(bookingRepository, seatRepository, idempotencyKeyRepository,
                 pricingService, bookingMapper, properties, Clock.fixed(NOW, ZoneOffset.UTC), List.of(new InMemoryHold()),
                 catalogClient, transactions, outboxService, seatClaimService,
-                holdExpirationRepository);
+                holdExpirationRepository, mock(BookingMetrics.class));
         event = event(1L, EventStatus.ON_SALE, null);
         seat1 = seat(10L, event, "10000");
         seat2 = seat(11L, event, "20000");

@@ -3,6 +3,7 @@ package dev.ydt.booking.controller;
 import com.jayway.jsonpath.JsonPath;
 import dev.ydt.booking.contracts.AdmissionToken;
 import dev.ydt.booking.support.AbstractIntegrationTest;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.persistence.EntityManagerFactory;
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
@@ -28,6 +29,8 @@ class BookingApiIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     EntityManagerFactory entityManagerFactory;
+    @Autowired
+    MeterRegistry meterRegistry;
 
     // Jazz Night: продажи открылись сутки назад, поэтому действует early bird
     private static final long EVENT_ID = 1;
@@ -59,6 +62,27 @@ class BookingApiIntegrationTest extends AbstractIntegrationTest {
 
         // места вернулись в продажу, их можно забронировать снова
         createBooking("bob", seatIds).andExpect(status().isCreated());
+    }
+
+    @Test
+    void bookingsAndConflictsAreCounted() throws Exception {
+        double created = meterRegistry.get("bookings.placed").counter().count();
+        double conflicts = meterRegistry.get("seat.conflicts").tag("caught_by", "application").counter().count();
+        List<Integer> seatIds = availableSeats(1);
+
+        mvc.perform(post("/api/v1/bookings")
+                        .header("X-User-Id", "alice")
+                        .header("X-Request-Id", "req-42")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"eventId\": %d, \"seatIds\": %s}".formatted(EVENT_ID, seatIds)))
+                .andExpect(status().isCreated());
+        createBooking("bob", seatIds).andExpect(status().isConflict());
+
+        assertThat(meterRegistry.get("bookings.placed").counter().count()).isEqualTo(created + 1);
+        assertThat(meterRegistry.get("seat.conflicts").tag("caught_by", "application").counter().count())
+                .isEqualTo(conflicts + 1);
+        assertThat(meterRegistry.get("circuit.breaker.state").tag("name", "payment").gauge().value())
+                .as("breaker платёжки закрыт").isZero();
     }
 
     @Test

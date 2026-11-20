@@ -3,6 +3,7 @@ package dev.ydt.booking.client;
 import dev.ydt.booking.config.PaymentClientProperties;
 import dev.ydt.booking.contracts.payment.AuthorizePaymentRequest;
 import dev.ydt.booking.contracts.payment.PaymentResult;
+import dev.ydt.booking.contracts.web.RequestIdFilter;
 import dev.ydt.booking.exception.PaymentUnavailableException;
 import io.github.resilience4j.bulkhead.Bulkhead;
 import io.github.resilience4j.bulkhead.BulkheadConfig;
@@ -51,7 +52,8 @@ public class PaymentClient {
         var requestFactory = new JdkClientHttpRequestFactory(
                 HttpClient.newBuilder().connectTimeout(properties.timeout()).build());
         requestFactory.setReadTimeout(properties.timeout());
-        this.restClient = RestClient.builder().baseUrl(properties.url()).requestFactory(requestFactory).build();
+        this.restClient = RestClient.builder().baseUrl(properties.url()).requestFactory(requestFactory)
+                .requestInterceptor(RequestIdFilter.propagate()).build();
         this.openStateWait = properties.openStateWait();
         this.circuitBreaker = CircuitBreaker.of("payment", CircuitBreakerConfig.custom()
                 // решение по последним 10 вызовам, но не раньше 5: один сбой на холодном старте не откроет breaker

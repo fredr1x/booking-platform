@@ -1,5 +1,7 @@
 package dev.ydt.booking.exception;
 
+import dev.ydt.booking.service.BookingMetrics;
+import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
@@ -23,7 +25,10 @@ import java.util.List;
  * и подробности валидации.
  */
 @RestControllerAdvice
+@RequiredArgsConstructor
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
+
+    private final BookingMetrics metrics;
 
     /** Одна ошибка валидации: какое поле и что с ним не так. */
     public record FieldViolation(String field, String message) {
@@ -80,6 +85,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         var problem = ProblemDetail.forStatusAndDetail(status, ex.getMessage());
         problem.setTitle(ex.getClass().getSimpleName().replace("Exception", ""));
         if (ex instanceof SeatUnavailableException e) {
+            metrics.seatConflict();
             problem.setProperty("seatIds", e.getSeatIds());
         }
         return problem;
@@ -118,6 +124,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     // (например, уникальный индекс uq_booking_seats_active_seat).
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ProblemDetail handleIntegrityViolation(DataIntegrityViolationException ex) {
+        metrics.seatConflictCaughtByDatabase();
         var problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
                 "Request conflicts with the current state, retry the request");
         problem.setTitle("Conflict");

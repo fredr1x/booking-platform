@@ -1,11 +1,14 @@
 package dev.ydt.waitingroom;
 
+import dev.ydt.booking.contracts.web.RequestIdFilter;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Import;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
+@Import(RequestIdFilter.class)
 @ConfigurationPropertiesScan
 @EnableScheduling
 public class WaitingRoomServiceApplication {

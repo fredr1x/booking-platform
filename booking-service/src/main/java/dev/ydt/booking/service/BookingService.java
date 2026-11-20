@@ -70,6 +70,7 @@ public class BookingService {
     private final OutboxService outboxService;
     private final SeatClaimService seatClaimService;
     private final HoldExpirationRepository holdExpirationRepository;
+    private final BookingMetrics metrics;
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public BookingResponse create(String userId, CreateBookingRequest request) {
@@ -173,6 +174,7 @@ public class BookingService {
         booking.expire(now);
         releaseSeatClaims(booking);
         outboxService.publish(new BookingExpired(UUID.randomUUID(), booking.getId(), booking.getUserId(), now));
+        metrics.holdExpired();
     }
 
     // Claim в Redis до транзакции: проигравший получает 409, не взяв соединение из пула. Не создали бронь — снимаем.
@@ -219,6 +221,8 @@ public class BookingService {
         holdExpirationRepository.schedule(booking.getId(), booking.getExpiresAt());
         outboxService.publish(new BookingCreated(UUID.randomUUID(), booking.getId(), userId, booking.getEventId(),
                 booking.getTotalPrice(), booking.getExpiresAt(), now));
+        metrics.bookingCreated();
+        log.info("Booking {} created: user {}, event {}, seats {}", booking.getId(), userId, event.id(), request.seatIds());
         return bookingMapper.toResponse(booking);
     }
 

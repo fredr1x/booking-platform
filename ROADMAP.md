@@ -249,14 +249,28 @@ booking-project/
 
 ---
 
-## Блок 10 · 20.11 · Observability
+## Блок 10 · 20.11 · Observability ✅
+
+**Сделано ✅:**
+- Prometheus-реестр во всех сервисах, бакеты гистограммы для p99 по нескольким инстансам.
+- Бизнес-метрики: `bookings_placed_total` (`_created` срезает клиент Prometheus), `seat_conflicts_total{caught_by}`, `holds_expired_total`, `payments_total{result}`, состояние circuit breaker'ов, `queue_length`. Лаг Kafka и пул Hikari из коробки.
+- Логи в JSON (ECS) в stdout, их собирает Grafana Alloy из Docker в Loki. loki4j не понадобился: сервисы не знают про Loki.
+- `X-Request-Id` идёт так: gateway → MDC (`RequestIdFilter` в `booking-contracts`) → RestClient → колонка outbox `request_id` (`V8`) → заголовок Kafka → `RecordInterceptor` в notification-service. Одна бронь находится в Loki по id: пять строк из трёх сервисов.
+- Grafana provisioning: дашборд в git, профиль `obs`.
+- k6 baseline `load/catalog-browse.js`, `load/bookings.js`, flash sale; цифры в [load/results/baseline.md](load/results/baseline.md):
+  - gateway добавляет ~300 мс к медиане каталога;
+  - bulkhead платёжки тесен при 20 оплатах в секунду;
+  - flash sale на 10 000 покупателей без двойных продаж, p99 брони 1.17 с.
+- Tempo не делали.
+- Решения в [ADR 0009](docs/adr/0009-observability.md). 151 тест.
+
 
 **Задачи**
 1. Micrometer + Prometheus. Бизнес-метрики: `bookings_created_total`, `seat_conflicts_total`, `holds_expired_total`, `queue_length`, `circuit_breaker_state`, задержка Kafka consumer'ов.
 2. Grafana: дашборды как код (provisioning), RPS, p50/p95/p99, ошибки, пул соединений Hikari, состояние circuit breaker, очередь.
 3. Логи в JSON (structured logging в Spring Boot), в Loki через loki4j. `X-Request-Id` → MDC → заголовки Kafka → MDC consumer'а: одну бронь видно сквозь все сервисы.
 4. По желанию: Micrometer Tracing + OpenTelemetry → Tempo (+150 МБ).
-5. k6 baseline: три сценария (просмотр каталога, обычные брони, flash sale), результаты в `load-tests/results/baseline.md`.
+5. k6 baseline: три сценария (просмотр каталога, обычные брони, flash sale), результаты в `load/results/baseline.md`.
 
 **Готово, когда:** в Grafana видны RPS и p99, лог ищется по request id, есть первые цифры.
 
