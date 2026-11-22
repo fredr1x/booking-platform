@@ -13,7 +13,8 @@ import java.time.Duration;
  * @param retryWait            пауза между попытками
  * @param failureRateThreshold доля сбоев в процентах среди последних вызовов, с которой circuit breaker открывается
  * @param openStateWait        сколько circuit breaker открыт, прежде чем пропустить пробные вызовы
- * @param maxConcurrentCalls   bulkhead: сколько вызовов платёжки одновременно, остальные сразу получают отказ
+ * @param maxConcurrentCalls   bulkhead оплат: сколько authorize одновременно, остальные сразу получают отказ
+ * @param maxConcurrentRefunds отдельный bulkhead возвратов: всплеск компенсаций не отнимает места у оплат
  */
 @ConfigurationProperties("payment")
 public record PaymentClientProperties(
@@ -23,6 +24,7 @@ public record PaymentClientProperties(
         Duration retryWait,
         float failureRateThreshold,
         Duration openStateWait,
-        int maxConcurrentCalls
+        int maxConcurrentCalls,
+        int maxConcurrentRefunds
 ) {
 }

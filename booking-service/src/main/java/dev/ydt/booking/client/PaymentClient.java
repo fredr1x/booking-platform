@@ -34,8 +34,8 @@ import java.util.function.Supplier;
  *     (заголовок Idempotency-Key): повтор после таймаута вернёт тот же платёж, а не спишет деньги второй раз.</li>
  *     <li>Circuit breaker считает каждую попытку. Половина последних вызовов упала — следующие сразу получают
  *     отказ, не тратя поток и таймаут, а платёжка получает паузу на восстановление.</li>
- *     <li>Bulkhead: не больше {@code payment.max-concurrent-calls} вызовов одновременно, чтобы медленная платёжка
- *     не забрала все потоки и соединения сервиса.</li>
+ *     <li>Bulkhead: не больше {@code payment.max-concurrent-calls} оплат одновременно, чтобы медленная платёжка
+ *     не забрала все потоки и соединения сервиса. У возвратов свой bulkhead.</li>
  * </ul>
  */
 @Slf4j
@@ -46,6 +46,7 @@ public class PaymentClient {
     private final CircuitBreaker circuitBreaker;
     private final Retry retry;
     private final Bulkhead bulkhead;
+    private final Bulkhead refundBulkhead;
     private final Duration openStateWait;
 
     public PaymentClient(PaymentClientProperties properties) {
@@ -74,12 +75,16 @@ public class PaymentClient {
                 .maxConcurrentCalls(properties.maxConcurrentCalls())
                 .maxWaitDuration(Duration.ZERO)
                 .build());
+        this.refundBulkhead = Bulkhead.of("payment-refund", BulkheadConfig.custom()
+                .maxConcurrentCalls(properties.maxConcurrentRefunds())
+                .maxWaitDuration(Duration.ZERO)
+                .build());
         circuitBreaker.getEventPublisher().onStateTransition(event ->
                 log.warn("Payment circuit breaker: {}", event.getStateTransition()));
     }
 
     public PaymentResult authorize(String paymentId, Long bookingId, String userId, BigDecimal amount) {
-        return call(() -> restClient.post()
+        return call(bulkhead, () -> restClient.post()
                 .uri("/api/v1/payments")
                 .header("Idempotency-Key", paymentId)
                 .body(new AuthorizePaymentRequest(bookingId, userId, amount))
@@ -88,7 +93,7 @@ public class PaymentClient {
     }
 
     public PaymentResult refund(String paymentId) {
-        return call(() -> restClient.post()
+        return call(refundBulkhead, () -> restClient.post()
                 .uri("/api/v1/payments/{id}/refund", paymentId)
                 .retrieve()
                 .body(PaymentResult.class));
@@ -105,7 +110,7 @@ public class PaymentClient {
         return circuitBreaker;
     }
 
-    private PaymentResult call(Supplier<PaymentResult> http) {
+    private PaymentResult call(Bulkhead bulkhead, Supplier<PaymentResult> http) {
         Supplier<PaymentResult> decorated = Retry.decorateSupplier(retry,
                 CircuitBreaker.decorateSupplier(circuitBreaker,
                         Bulkhead.decorateSupplier(bulkhead, http)));

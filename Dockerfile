@@ -21,6 +21,8 @@ COPY --from=extract /layers/spring-boot-loader/ ./
 COPY --from=extract /layers/snapshot-dependencies/ ./
 COPY --from=extract /layers/application/ ./
 USER app
-# куча — доля от лимита контейнера, а не от памяти хоста; при OOM процесс падает, и Docker его перезапускает
-ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
+# куча — доля от лимита контейнера, а не от памяти хоста; при OOM процесс падает, и Docker его перезапускает.
+# 50%, а не 75%: metaspace, code cache и прочая не-heap память Spring-сервиса занимают 120–260 МБ,
+# и с кучей в 75% booking упирался в лимит контейнера под нагрузкой (load/results/before-after.md)
+ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=50 -XX:+ExitOnOutOfMemoryError"
 ENTRYPOINT ["java", "org.springframework.boot.loader.launch.JarLauncher"]

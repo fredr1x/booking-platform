@@ -54,7 +54,10 @@ payment:
   retry-wait: 200ms
   failure-rate-threshold: 50
   open-state-wait: 10s
-  max-concurrent-calls: 20
+  # по закону Литтла одновременных вызовов = поток × задержка: 100 оплат в секунду × 0.5 с = 50.
+  # На 20 сервис упирался в ~36 оплат в секунду при здоровой платёжке (load/results/before-after.md)
+  max-concurrent-calls: 100
+  max-concurrent-refunds: 20
 
 booking:
   hold-ttl: 10m

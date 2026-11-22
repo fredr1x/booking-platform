@@ -10,6 +10,7 @@ const DURATION = __ENV.DURATION || '60s';
 
 const confirmed = new Counter('bookings_confirmed');
 const conflicts = new Counter('bookings_conflict');
+const declined = new Counter('bookings_declined');
 
 export const options = {
     scenarios: {
@@ -45,8 +46,14 @@ export default function (data) {
     }
     const id = created.json().id;
     const pay = http.post(`${BASE}/api/v1/bookings/${id}/pay`, null, {headers, tags: {name: 'pay'}});
-    if (pay.status === 200 && pay.json().status === 'CONFIRMED') {
-        confirmed.add(1);
+    if (pay.status !== 200) {
+        return;
     }
+    // заглушка платёжки отказывает примерно в 10% оплат: такую бронь уже отменила сага
+    if (pay.json().status !== 'CONFIRMED') {
+        declined.add(1);
+        return;
+    }
+    confirmed.add(1);
     http.post(`${BASE}/api/v1/bookings/${id}/cancel`, null, {headers, tags: {name: 'cancel'}});
 }

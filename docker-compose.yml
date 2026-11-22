@@ -191,6 +191,8 @@ services:
 
   booking-service:
     <<: *app
+    # горячий сервис: под нагрузкой не-heap около 260 МБ, с кучей в 512 МБ не помещается
+    mem_limit: 768m
     build:
       context: .
       args:
@@ -221,6 +223,8 @@ services:
 
   catalog-service:
     <<: *app
+    # горячий сервис: под нагрузкой не-heap около 260 МБ, с кучей в 512 МБ не помещается
+    mem_limit: 768m
     build:
       context: .
       args:
